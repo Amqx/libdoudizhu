@@ -1,0 +1,48 @@
+# Libdoudizhu
+
+Classic Chinese doudizhu game written fully in C as a statically linked library. Includes a small CLI game to play with.
+
+Licensed via GPL v3
+
+## Features:
+
+- All card types in the actual game
+    - Singles, doubles, pairs, triples, triples + N/ 2N, consecutive pairs/ triples, triple straights + N/2N, 4 + 2,
+      bomb, joker bomb
+- Fully fledged bidding logic for players/ AI to bid for landlord
+- Working AI bot that can be added to play against real human players
+
+## Building
+
+This library should build on most if not all compilers. I have only tested standard gcc (15.2.1 20260103),
+riscv64-elf-gcc (Arch Linux Repositories - 15.2.0) and MSVC (19.44.35222 for x64).
+
+You will need CMake, Ninja, and a C compiler that CMake can find.
+
+```bash
+# From project root
+mkdir build && cd build
+
+# For the library use this
+cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" --target doudizhu -S ..
+
+# To build the CLI game use this
+cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" --target game -S ..
+
+# For the test suite use this
+cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" --target all -S ..
+
+cmake --build
+
+# Depending on what you built, the following should be in your current directory
+
+## CLI game
+./game
+
+## Library
+./libdoudizhu.a
+
+## Run tests
+ctest
+
+```

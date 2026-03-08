@@ -1,0 +1,254 @@
+/**
+ * @file game.c
+ * @brief Implementation of doudizhu game engine logic.
+ * @author Jonathan
+ * @date 08-Mar-26
+ */
+
+#include "game.h"
+#include <string.h>
+#include <stdlib.h>
+
+/* ---------------------------------------------------------------------------
+ * Setup Functions
+ * --------------------------------------------------------------------------- */
+
+void game_init(GameState *g) {
+    memset(g, 0, sizeof(GameState));
+    g->landlord = PLAYER_NONE;
+    g->bid.current_bidder = PLAYER_NONE;
+    g->bid.highest_bidder = PLAYER_NONE;
+    g->phase = PHASE_BIDDING;
+    g->current_player = PLAYER_NONE;
+    g->last_player = PLAYER_NONE;
+    g->last_move.type = MOVE_PASS;
+    g->winner = PLAYER_NONE;
+}
+
+void game_reset_deck(GameState *g) {
+    for (int i = 0; i < GAME_DECK_SIZE; i++)
+        g->deck[i] = (Card) i;
+}
+
+void game_shuffle(GameState *g, unsigned int seed) {
+    if (seed == 0) seed = 0;
+    srand(seed);
+    for (int i = GAME_DECK_SIZE - 1; i > 0; i--) {
+        const int j = rand() % (i + 1);
+        const Card tmp = g->deck[i];
+        g->deck[i] = g->deck[j];
+        g->deck[j] = tmp;
+    }
+}
+
+void game_deal(GameState *g) {
+    /* Deal 17 cards to each player sequentially from the shuffled deck. */
+    for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
+        for (int i = 0; i < GAME_HAND_SIZE; i++)
+            g->hands[p].cards[i] = g->deck[p * GAME_HAND_SIZE + i];
+        g->hands[p].count = GAME_HAND_SIZE;
+    }
+    /* The remaining 3 cards form the kitty. */
+    for (int i = 0; i < GAME_KITTY_SIZE; i++)
+        g->kitty[i] = g->deck[GAME_NUM_PLAYERS * GAME_HAND_SIZE + i];
+}
+
+/* ---------------------------------------------------------------------------
+ * Bidding Phase Logic
+ * --------------------------------------------------------------------------- */
+
+void game_start_bidding(GameState *g, const int first_bidder) {
+    g->phase = PHASE_BIDDING;
+    g->bid.current_bidder = first_bidder;
+    g->bid.highest_bidder = PLAYER_NONE;
+    g->bid.highest_score = 0;
+    g->bid.num_passed = 0;
+    for (int i = 0; i < GAME_NUM_PLAYERS; i++)
+        g->bid.scores[i] = 0;
+    g->landlord = PLAYER_NONE;
+    g->base_score = 0;
+}
+
+/**
+ * @brief Internal helper to award kitty to the landlord and sort their hand.
+ */
+static void assign_kitty(GameState *g) {
+    Hand *h = &g->hands[g->landlord];
+    for (int i = 0; i < GAME_KITTY_SIZE; i++)
+        h->cards[h->count++] = g->kitty[i];
+
+    /* Perform a simple insertion sort to keep the hand readable. */
+    for (int i = 1; i < h->count; i++) {
+        const Card key = h->cards[i];
+        int j = i - 1;
+        while (j >= 0 && CARD_RANK(h->cards[j]) > CARD_RANK(key)) {
+            h->cards[j + 1] = h->cards[j];
+            j--;
+        }
+        h->cards[j + 1] = key;
+    }
+}
+
+/**
+ * @brief Transitions the game from bidding to the active playing phase.
+ */
+static void start_playing(GameState *g) {
+    assign_kitty(g);
+    g->base_score = g->bid.highest_score;
+    g->phase = PHASE_PLAYING;
+    g->current_player = g->landlord; /* Landlord always leads the first round. */
+    g->last_player = PLAYER_NONE;
+    g->last_move.type = MOVE_PASS;
+    g->passes_in_a_row = 0;
+    g->bomb_count = 0;
+    g->history_count = 0;
+}
+
+int game_bid(GameState *g, const int player, const int value) {
+    if (g->phase != PHASE_BIDDING || player != g->bid.current_bidder) return 0;
+    if (value < 0 || value > 3) return 0;
+    if (value > 0 && value <= g->bid.highest_score) return 0;
+
+    g->bid.scores[player] = value;
+
+    if (value > 0) {
+        g->bid.highest_bidder = player;
+        g->bid.highest_score = value;
+    } else {
+        g->bid.num_passed++;
+    }
+
+    int total_bids = 0;
+    for (int i = 0; i < GAME_NUM_PLAYERS; i++) if (g->bid.scores[i] > 0) total_bids++;
+
+    const int bidding_done = (value == 3) ||
+                             (g->bid.num_passed == GAME_NUM_PLAYERS) ||
+                             (total_bids + g->bid.num_passed == GAME_NUM_PLAYERS);
+
+    if (bidding_done) {
+        if (g->bid.highest_bidder != PLAYER_NONE) {
+            g->landlord = g->bid.highest_bidder;
+            start_playing(g);
+        }
+    } else {
+        g->bid.current_bidder = (player + 1) % GAME_NUM_PLAYERS;
+    }
+
+    return 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * Playing Internal Helpers
+ * --------------------------------------------------------------------------- */
+
+/**
+ * @brief Removes played cards from a player's hand via shifting.
+ */
+static void remove_cards(GameState *g, const int player, const Move *move) {
+    Hand *h = &g->hands[player];
+    for (int i = 0; i < move->count; i++) {
+        const int target_rank = CARD_RANK(move->cards[i]);
+        for (int j = 0; j < h->count; j++) {
+            if (CARD_RANK(h->cards[j]) == target_rank) {
+                h->cards[j] = h->cards[--h->count];
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Adds a move to the game's history log.
+ */
+static void record_play(GameState *g, const int player, const Move *move) {
+    if (g->history_count < GAME_MAX_PLAYS) {
+        g->history[g->history_count].player = player;
+        g->history[g->history_count].move = *move;
+        g->history_count++;
+    }
+}
+
+/**
+ * @brief Checks for victory conditions and calculates the final score.
+ */
+static void check_game_over(GameState *g, const int player) {
+    if (g->hands[player].count == 0) {
+        g->phase = PHASE_OVER;
+        g->winner = player;
+        /* Calculate score: multiplier = base_score * 2^(number of bombs). */
+        g->score = g->base_score;
+        for (int i = 0; i < g->bomb_count; i++)
+            g->score *= 2;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+ * Public Interface
+ * --------------------------------------------------------------------------- */
+
+int game_player_has_cards(const GameState *g, const int player, const Move *move) {
+    int have[RANK_COUNT_SIZE], need[RANK_COUNT_SIZE];
+    moves_count_ranks(g->hands[player].cards, g->hands[player].count, have);
+    moves_count_ranks(move->cards, move->count, need);
+
+    for (int r = 0; r < RANK_COUNT_SIZE; r++) {
+        if (have[r] < need[r]) return 0;
+    }
+    return 1;
+}
+
+int game_legal_moves(const GameState *g, const int player, Move *out, const int max_out) {
+    const Move *prev = (g->last_player == PLAYER_NONE || g->last_player == player)
+                           ? &(const Move){.type = MOVE_PASS}
+                           : &g->last_move;
+    return moves_generate(g->hands[player].cards, g->hands[player].count, prev, out, max_out);
+}
+
+int game_is_peasant(const GameState *g, const int player) {
+    return player != g->landlord;
+}
+
+int game_next_player(const GameState *g, const int player) {
+    (void) g;
+    return (player + 1) % GAME_NUM_PLAYERS;
+}
+
+int game_play(GameState *g, const int player, const Move *move) {
+    if (g->phase != PHASE_PLAYING || player != g->current_player || !move) return 0;
+
+    if (move->type == MOVE_PASS) {
+        /* Cannot pass if the player is leading the turn. */
+        if (g->last_player == PLAYER_NONE || g->last_player == player) return 0;
+
+        record_play(g, player, move);
+        g->passes_in_a_row++;
+        g->current_player = game_next_player(g, player);
+
+        /* Everyone else passed; the table is cleared. */
+        if (g->passes_in_a_row >= GAME_NUM_PLAYERS - 1) {
+            g->last_player = PLAYER_NONE;
+            g->last_move.type = MOVE_PASS;
+            g->passes_in_a_row = 0;
+        }
+        return 1;
+    }
+
+    if (move->type == MOVE_INVALID || !game_player_has_cards(g, player, move)) return 0;
+
+    /* Validate if the move beats the current card(s) on the table. */
+    int leads_turn = (g->last_player == PLAYER_NONE || g->last_player == player);
+    if (!leads_turn && !moves_beats(move, &g->last_move)) return 0;
+
+    if (move->type == MOVE_BOMB || move->type == MOVE_ROCKET) g->bomb_count++;
+
+    remove_cards(g, player, move);
+    record_play(g, player, move);
+
+    g->last_player = player;
+    g->last_move = *move;
+    g->passes_in_a_row = 0;
+    g->current_player = game_next_player(g, player);
+
+    check_game_over(g, player);
+    return 1;
+}
