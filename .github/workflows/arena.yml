@@ -1,0 +1,247 @@
+# arena.yml
+# Runs a massive parallel hill-climbing weight-tuning arena and publishes
+# the best BotWeights found across all shards as a workflow artifact.
+#
+# Each shard is an independent selfplay_tune() run with a unique PRNG seed.
+# After all shards finish, the combine job picks the champion by head-to-head
+# win count (seat0_wins in the final arena: tuned weights vs default weights).
+
+name: Arena
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Parallel shards to run (max 20 on free tier)"
+        required: false
+        default: "10"
+        type: string
+      generations:
+        description: "Hill-climbing generations per shard"
+        required: false
+        default: "1000"
+        type: string
+      games_per_generation:
+        description: "Games used to score each candidate per generation"
+        required: false
+        default: "1000"
+        type: string
+      initial_step:
+        description: "Starting mutation magnitude (weight units, anneals to 1)"
+        required: false
+        default: "30"
+        type: string
+      seed_base:
+        description: "Base PRNG seed; shard i uses seed_base + i*7919"
+        required: false
+        default: "42"
+        type: string
+
+env:
+  DEFAULT_SHARDS: "10"
+  DEFAULT_GENS: "1000"
+  DEFAULT_GPG: "1000"
+  DEFAULT_STEP: "30"
+  DEFAULT_SEED: "42"
+
+jobs:
+  build:
+    name: Build (Release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake (Release)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build selfplay binary
+        run: cmake --build build --target selfplay -j$(nproc)
+
+      - name: Smoke-test binary
+        run: |
+          # Quick sanity check: 2 generations, 4 games/gen — should finish in < 1s.
+          build/selfplay 2 4 5 1 | grep -q "attempted=2"
+          echo "Smoke test passed."
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: selfplay-bin
+          path: build/selfplay
+          retention-days: 1
+
+  generate-matrix:
+    name: Generate shard matrix
+    runs-on: ubuntu-latest
+    outputs:
+      shard-ids: ${{ steps.gen.outputs.shard-ids }}
+    steps:
+      - name: Emit JSON array of shard IDs
+        id: gen
+        run: |
+          N="${{ inputs.shards || env.DEFAULT_SHARDS }}"
+          # Clamp to [1, 20] — GitHub free tier limits concurrent jobs.
+          N=$(( N < 1 ? 1 : N > 20 ? 20 : N ))
+          IDS=$(python3 -c "import json; print(json.dumps(list(range($N))))")
+          echo "shard-ids=$IDS" >> "$GITHUB_OUTPUT"
+          echo "Scheduling $N shards."
+
+  shard:
+    name: Shard ${{ matrix.shard_id }}
+    needs: [ build, generate-matrix ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300   # 5-hour safety net; typical run is < 30 min
+    strategy:
+      fail-fast: false      # let other shards finish even if one dies
+      matrix:
+        shard_id: ${{ fromJson(needs.generate-matrix.outputs.shard-ids) }}
+
+    steps:
+      - name: Download selfplay binary
+        uses: actions/download-artifact@v4
+        with:
+          name: selfplay-bin
+
+      - name: Make binary executable
+        run: chmod +x selfplay
+
+      - name: Run tuning shard ${{ matrix.shard_id }}
+        run: |
+          GEN="${{ inputs.generations        || env.DEFAULT_GENS  }}"
+          GPG="${{ inputs.games_per_generation || env.DEFAULT_GPG   }}"
+          STP="${{ inputs.initial_step       || env.DEFAULT_STEP  }}"
+          BASE="${{ inputs.seed_base         || env.DEFAULT_SEED  }}"
+
+          # Each shard gets a well-separated seed so their PRNG streams don't
+          # overlap for any plausible value of BASE.
+          SEED=$(( BASE + ${{ matrix.shard_id }} * 7919 ))
+
+          echo "=== Shard ${{ matrix.shard_id }} | gens=$GEN gpg=$GPG step=$STP seed=$SEED ==="
+          ./selfplay "$GEN" "$GPG" "$STP" "$SEED" | tee "shard_${{ matrix.shard_id }}.txt"
+
+      - name: Upload shard result
+        uses: actions/upload-artifact@v4
+        if: always()   # upload even if the step timed out / crashed partway
+        with:
+          name: shard-${{ matrix.shard_id }}
+          path: shard_${{ matrix.shard_id }}.txt
+          retention-days: 30
+
+  combine:
+    name: Pick champion & publish results
+    needs: shard
+    runs-on: ubuntu-latest
+    if: always()   # run even when some shards failed or were skipped
+
+    steps:
+      - name: Download all shard results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          merge-multiple: true
+
+      - name: Select champion and build report
+        id: champion
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          best_file=""
+          best_seat0=-1
+          best_accepted=-1
+          best_score=-999999999
+
+          declare -A seat0_map accepted_map score_map attempted_map completed_map landlord_map peasant_map
+
+          for f in shard_*.txt; do
+            [[ -f "$f" ]] || continue
+
+            seat0=$(    awk 'match($0,/seat0_wins=(-?[0-9]+)/,  a){print a[1]}' "$f")
+            accepted=$( awk 'match($0,/accepted=([0-9]+)/,       a){print a[1]}' "$f")
+            score=$(    awk 'match($0,/total_score=(-?[0-9]+)/,  a){print a[1]}' "$f")
+            attempted=$(awk 'match($0,/attempted=([0-9]+)/,      a){print a[1]}' "$f")
+            completed=$(awk 'match($0,/completed=([0-9]+)/,      a){print a[1]}' "$f")
+            landlord=$( awk 'match($0,/landlord=([0-9]+)/,       a){print a[1]}' "$f")
+            peasant=$(  awk 'match($0,/peasants=([0-9]+)/,       a){print a[1]}' "$f")
+
+            seat0=${seat0:-0}
+            accepted=${accepted:-0}
+            score=${score:-0}
+            attempted=${attempted:-0}
+            completed=${completed:-0}
+            landlord=${landlord:-0}
+            peasant=${peasant:-0}
+
+            seat0_map[$f]=$seat0
+            accepted_map[$f]=$accepted
+            score_map[$f]=$score
+            attempted_map[$f]=$attempted
+            completed_map[$f]=$completed
+            landlord_map[$f]=$landlord
+            peasant_map[$f]=$peasant
+
+            # Primary: seat0_wins; secondary: accepted; tertiary: total_score
+            if (( seat0 > best_seat0 )) \
+               || (( seat0 == best_seat0 && accepted > best_accepted )) \
+               || (( seat0 == best_seat0 && accepted == best_accepted && score > best_score )); then
+              best_file="$f"
+              best_seat0=$seat0
+              best_accepted=$accepted
+              best_score=$score
+            fi
+          done
+
+          if [[ -z "$best_file" ]]; then
+            echo "::error::No valid shard result files found — all shards may have failed."
+            exit 1
+          fi
+
+          echo "champion=$best_file" >> "$GITHUB_OUTPUT"
+          echo "seat0_wins=$best_seat0"  >> "$GITHUB_OUTPUT"
+          echo "accepted=$best_accepted" >> "$GITHUB_OUTPUT"
+
+          grep -E '^[a-z_]+=[-0-9]+$' "$best_file" > best_weights.txt
+          echo "Extracted $(wc -l < best_weights.txt) weight fields from $best_file."
+
+          {
+            echo "## Arena Results"
+            echo ""
+            echo "| Shard | Completed | Attempted | Accepted | Seat-0 wins | Landlord | Peasants | Total score |"
+            echo "|------:|----------:|----------:|---------:|------------:|---------:|---------:|------------:|"
+
+            for f in $(ls shard_*.txt 2>/dev/null | sort -V); do
+              [[ -f "$f" ]] || continue
+              mark=""
+              [[ "$f" == "$best_file" ]] && mark=" 🏆"
+              echo "| ${f/shard_/} ${mark} | ${completed_map[$f]} | ${attempted_map[$f]} | ${accepted_map[$f]} | ${seat0_map[$f]} | ${landlord_map[$f]} | ${peasant_map[$f]} | ${score_map[$f]} |"
+            done
+
+            echo ""
+            echo "### Champion: \`$best_file\`"
+            echo ""
+            echo "- **Seat-0 wins** (tuned vs default final arena): $best_seat0"
+            echo "- **Accepted mutations**: $best_accepted"
+            echo "- **Total arena score**: $best_score"
+            echo ""
+            echo "### Best weights"
+            echo ""
+            echo '```'
+            cat best_weights.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload best weights
+        uses: actions/upload-artifact@v4
+        with:
+          name: best-weights
+          path: best_weights.txt
+          retention-days: 90
+
+      - name: Print champion summary
+        run: |
+          echo "Champion: ${{ steps.champion.outputs.champion }}"
+          echo "Seat-0 wins: ${{ steps.champion.outputs.seat0_wins }}"
+          echo "Accepted mutations: ${{ steps.champion.outputs.accepted }}"
+          echo ""
+          echo "Best weights:"
+          cat best_weights.txt

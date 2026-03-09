@@ -22,6 +22,10 @@ add_executable(game main/main.c)
 target_link_libraries(game PRIVATE doudizhu)
 target_link_libraries(game PRIVATE project_warnings)
 
+add_executable(selfplay main/selfplay.c)
+target_link_libraries(selfplay PRIVATE doudizhu)
+target_link_libraries(selfplay PRIVATE project_warnings)
+
 enable_testing()
 add_executable(test_moves tests/test_moves.c)
 target_link_libraries(test_moves PRIVATE doudizhu)
@@ -38,3 +42,7 @@ add_test(NAME test_game COMMAND test_game)
 add_executable(test_eval tests/test_eval.c)
 target_link_libraries(test_eval PRIVATE doudizhu)
 add_test(NAME test_eval COMMAND test_eval)
+
+add_executable(test_selfplay tests/test_selfplay.c)
+target_link_libraries(test_selfplay PRIVATE doudizhu)
+add_test(NAME test_selfplay COMMAND test_selfplay)

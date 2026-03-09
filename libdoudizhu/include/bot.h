@@ -61,6 +61,48 @@ typedef struct {
 const BotWeights *bot_default_weights(void);
 
 /**
+ * @brief Initialises a BotWeights struct with the default values.
+ * @param out Destination to fill; must not be NULL.
+ * @details Always call this (or copy from bot_default_weights()) before
+ *          using bot_weights_set() to tweak individual fields.  A
+ *          zero-initialised BotWeights will cause a divide-by-zero crash
+ *          because pos_lead_divisor and pos_resp_divisor would both be 0.
+ */
+void bot_weights_init(BotWeights *out);
+
+/**
+ * @brief Returns the number of integer fields in BotWeights.
+ * @return Count of tunable weight entries.
+ * @details BotWeights is intentionally all-integer so generic tuning code can
+ *          index into it without bespoke per-field logic.
+ */
+int bot_weights_count(void);
+
+/**
+ * @brief Returns a stable field name for a BotWeights index.
+ * @param index Zero-based field index in [0, bot_weights_count()).
+ * @return Pointer to a static string, or NULL for an invalid index.
+ */
+const char *bot_weights_name(int index);
+
+/**
+ * @brief Copies a BotWeights field out by index.
+ * @param weights Source weights.
+ * @param index Zero-based field index.
+ * @return Field value, or 0 if index is invalid.
+ */
+int bot_weights_get(const BotWeights *weights, int index);
+
+/**
+ * @brief Writes a BotWeights field by index.
+ * @param weights Destination weights.
+ * @param index Zero-based field index.
+ * @param value New field value.
+ * @return 1 on success, 0 on invalid index or NULL weights.
+ */
+int bot_weights_set(BotWeights *weights, int index, int value);
+
+/**
  * @brief Decides a bid value for a bot player.
  * @param g Pointer to the current GameState (must be in PHASE_BIDDING).
  * @param player Index of the player whose bid is being decided.
@@ -70,6 +112,15 @@ const BotWeights *bot_default_weights(void);
  *          calibrated so that hands with bombs and control cards bid higher.
  */
 int bot_bid(const GameState *g, int player);
+
+/**
+ * @brief Weight-configurable variant of bot_bid.
+ * @param g Pointer to the current GameState.
+ * @param player Index of the player whose bid is being decided.
+ * @param weights Tuning constants to use, or NULL for defaults.
+ * @return Bid value: 0 (pass) or 1–3.
+ */
+int bot_bid_with_weights(const GameState *g, int player, const BotWeights *weights);
 
 /**
  * @brief Selects a move for a bot player during the playing phase.
@@ -96,6 +147,15 @@ int bot_bid(const GameState *g, int player);
 Move bot_play(const GameState *g, int player);
 
 /**
+ * @brief Weight-configurable variant of bot_play.
+ * @param g Pointer to the current GameState.
+ * @param player Index of the player whose turn it is.
+ * @param weights Tuning constants to use, or NULL for defaults.
+ * @return The chosen Move.
+ */
+Move bot_play_with_weights(const GameState *g, int player, const BotWeights *weights);
+
+/**
  * @brief Runs a series of complete bot-vs-bot games and tallies winner counts.
  * @param num_games Number of games to simulate.
  * @param base_seed Starting PRNG seed; game i uses seed (base_seed + i).
@@ -104,5 +164,16 @@ Move bot_play(const GameState *g, int player);
  *          skipped and do not count toward num_games.
  */
 void bot_simulate(int num_games, unsigned int base_seed, int wins_out[GAME_NUM_PLAYERS]);
+
+/**
+ * @brief Weight-configurable variant of bot_simulate.
+ * @param num_games Number of games to simulate.
+ * @param base_seed Starting PRNG seed; game i uses seed (base_seed + i).
+ * @param per_player_weights Weight set for each seat; NULL entry uses defaults.
+ * @param wins_out Array of size GAME_NUM_PLAYERS filled with per-player win counts.
+ */
+void bot_simulate_with_weights(int num_games, unsigned int base_seed,
+                               const BotWeights *per_player_weights[GAME_NUM_PLAYERS],
+                               int wins_out[GAME_NUM_PLAYERS]);
 
 #endif //LIBDOUDIZHU_BOT_H

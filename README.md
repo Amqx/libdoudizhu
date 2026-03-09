@@ -11,6 +11,7 @@ Licensed via GPL v3
       bomb, joker bomb
 - Fully fledged bidding logic for players/ AI to bid for landlord
 - Working AI bot that can be added to play against real human players
+- Weighted self-play framework to pit bot variants against each other and hill-climb bot weights
 
 ## Building
 
@@ -38,6 +39,9 @@ cmake --build
 
 ## CLI game
 ./game
+
+## Self-play tuner
+./selfplay [generations] [games_per_generation] [initial_step] [seed]
 
 ## Library
 ./libdoudizhu.a

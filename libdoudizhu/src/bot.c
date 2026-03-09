@@ -52,8 +52,61 @@ static const BotWeights DEFAULT_WEIGHTS = {
 
 const BotWeights *bot_default_weights(void) { return &DEFAULT_WEIGHTS; }
 
-/* Convenience alias used throughout this file */
-#define W DEFAULT_WEIGHTS
+void bot_weights_init(BotWeights *out) {
+    if (out) *out = DEFAULT_WEIGHTS;
+}
+
+static const char *const BOT_WEIGHT_NAMES[] = {
+    "clear_per_card",
+    "endgame_clear",
+    "chain_length",
+    "feeder_penalty",
+    "pos_lead_divisor",
+    "pos_resp_divisor",
+    "danger_per_card",
+    "gatekeeper_bonus",
+    "ctrl_2_penalty",
+    "ctrl_sj_penalty",
+    "ctrl_bj_penalty",
+    "must_stop_multiplier",
+    "break_combo_penalty",
+    "kicker_joker",
+    "kicker_2",
+    "kicker_ace",
+    "kicker_king",
+    "kicker_bomb_break",
+    "kicker_triple_break",
+    "kicker_pair_break",
+    "bid3_ctrl_reduction",
+    "void_threshold",
+    "landlord_weak_bonus",
+    "partner_signal_bonus",
+};
+
+static const BotWeights *resolve_weights(const BotWeights *weights) {
+    return weights ? weights : &DEFAULT_WEIGHTS;
+}
+
+int bot_weights_count(void) {
+    return (int) (sizeof(BotWeights) / sizeof(int));
+}
+
+const char *bot_weights_name(const int index) {
+    if (index < 0 || index >= bot_weights_count()) return NULL;
+    return BOT_WEIGHT_NAMES[index];
+}
+
+int bot_weights_get(const BotWeights *weights, const int index) {
+    const BotWeights *src = resolve_weights(weights);
+    if (index < 0 || index >= bot_weights_count()) return 0;
+    return ((const int *) src)[index];
+}
+
+int bot_weights_set(BotWeights *weights, const int index, const int value) {
+    if (!weights || index < 0 || index >= bot_weights_count()) return 0;
+    ((int *) weights)[index] = value;
+    return 1;
+}
 
 /* ---------------------------------------------------------------------------
  * Broad move-type categories (for history inference)
@@ -376,7 +429,8 @@ static int breaks_combination(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]
  *
  * Constants are drawn from BotWeights (W) so they can be tuned centrally.
  */
-static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
+static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE],
+                          const BotWeights *weights) {
     /* Only moves with kicker slots are penalised */
     int kicker_need;
     int core_min; /* ranks with this many cards in the move are "core", not kickers */
@@ -410,16 +464,16 @@ static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
 
         /* Base penalty: higher rank = more valuable = worse kicker */
         int val;
-        if (r == RANK_BIG_JOKER || r == RANK_SMALL_JOKER) val = W.kicker_joker;
-        else if (r == RANK_2) val = W.kicker_2;
-        else if (r == RANK_A) val = W.kicker_ace;
-        else if (r == RANK_K) val = W.kicker_king;
+        if (r == RANK_BIG_JOKER || r == RANK_SMALL_JOKER) val = weights->kicker_joker;
+        else if (r == RANK_2) val = weights->kicker_2;
+        else if (r == RANK_A) val = weights->kicker_ace;
+        else if (r == RANK_K) val = weights->kicker_king;
         else val = r;
 
         /* Extra penalty for breaking latent bomb / pair / triple potential. */
-        if      (hand_cnt[r] >= 4) val += W.kicker_bomb_break;
-        else if (hand_cnt[r] == 3) val += W.kicker_triple_break;
-        else if (hand_cnt[r] == 2 && kicker_need < 2) val += W.kicker_pair_break;
+        if (hand_cnt[r] >= 4) val += weights->kicker_bomb_break;
+        else if (hand_cnt[r] == 3) val += weights->kicker_triple_break;
+        else if (hand_cnt[r] == 2 && kicker_need < 2) val += weights->kicker_pair_break;
 
         penalty += val;
     }
@@ -472,29 +526,31 @@ static int position_after_move(const int hand_cnt[RANK_COUNT_SIZE],
  *    types the partner has signalled.
  */
 static int score_lead(const Move *m, const BotCtx *ctx,
-                      const int hand_size, const int hand_cnt[RANK_COUNT_SIZE]) {
+                      const int hand_size, const int hand_cnt[RANK_COUNT_SIZE],
+                      const BotWeights *weights) {
     if (m->type == MOVE_BOMB || m->type == MOVE_ROCKET) return -5000;
     if (m->count == hand_size) return 10000; /* win immediately */
 
     int sc = 0;
 
     /* Clearing more cards per turn is intrinsically valuable */
-    sc += m->count * W.clear_per_card;
+    sc += m->count * weights->clear_per_card;
 
     /* Prefer weaker ranks so control cards are preserved */
     sc -= eval_move_cost(m);
 
     /* Heavy penalty for breaking up a latent bomb or rocket */
-    if (breaks_combination(m, hand_cnt)) sc -= W.break_combo_penalty;
+    if (breaks_combination(m, hand_cnt)) sc -= weights->break_combo_penalty;
 
     /* Penalty for attaching high-value or bomb-breaking cards as kickers */
-    sc -= kicker_penalty(m, hand_cnt);
+    sc -= kicker_penalty(m, hand_cnt, weights);
 
     /* Post-move position: reward moves that leave the hand in good shape. */
-    sc += position_after_move(hand_cnt, m, hand_size) / W.pos_lead_divisor;
+    const int pld = weights->pos_lead_divisor > 0 ? weights->pos_lead_divisor : 1;
+    sc += position_after_move(hand_cnt, m, hand_size) / pld;
 
     /* In endgame, accelerate: clear as many cards as possible each turn */
-    if (ctx->endgame) sc += m->count * W.endgame_clear;
+    if (ctx->endgame) sc += m->count * weights->endgame_clear;
 
     /* Early game: bonus for leading chain combos to reduce hand size quickly
      * and probe what opponents have. */
@@ -505,7 +561,7 @@ static int score_lead(const Move *m, const BotCtx *ctx,
             case MOVE_TRIPLE_STRAIGHT:
             case MOVE_TRIPLE_STRAIGHT_SINGLES:
             case MOVE_TRIPLE_STRAIGHT_PAIRS:
-                sc += m->length * W.chain_length;
+                sc += m->length * weights->chain_length;
                 break;
             default: break;
         }
@@ -513,7 +569,7 @@ static int score_lead(const Move *m, const BotCtx *ctx,
 
     /* Feeder (peasant before landlord): prefer smaller leads to give the
      * gatekeeper / partner opportunities to respond to the landlord. */
-    if (ctx->is_feeder) sc -= m->count * W.feeder_penalty;
+    if (ctx->is_feeder) sc -= m->count * weights->feeder_penalty;
 
     /* -------------------------------------------------------------------
      * Exploit history-inferred weaknesses and partner signals.
@@ -529,9 +585,9 @@ static int score_lead(const Move *m, const BotCtx *ctx,
         const int lead_bt = move_broad_type(m->type);
         if (lead_bt >= 0) {
             if (lead_bt == ctx->landlord_pass_type)
-                sc += W.landlord_weak_bonus;
+                sc += weights->landlord_weak_bonus;
             if (!ctx->endgame && lead_bt == ctx->partner_lead_type)
-                sc += W.partner_signal_bonus;
+                sc += weights->partner_signal_bonus;
         }
     }
 
@@ -553,7 +609,7 @@ static int score_lead(const Move *m, const BotCtx *ctx,
  */
 static int score_response(const Move *m, const BotCtx *ctx,
                           const int hand_size, const int hand_cnt[RANK_COUNT_SIZE],
-                          const GameState *g) {
+                          const GameState *g, const BotWeights *weights) {
     if (m->count == hand_size) return 10000;
 
     int sc = 0;
@@ -562,19 +618,20 @@ static int score_response(const Move *m, const BotCtx *ctx,
     sc -= eval_move_cost(m);
 
     /* Avoid wasting a bomb component as a kicker */
-    if (breaks_combination(m, hand_cnt)) sc -= W.break_combo_penalty;
+    if (breaks_combination(m, hand_cnt)) sc -= weights->break_combo_penalty;
 
     /* Penalty for attaching high-value or bomb-breaking cards as kickers */
-    sc -= kicker_penalty(m, hand_cnt);
+    sc -= kicker_penalty(m, hand_cnt, weights);
 
     /* Post-move position: penalise responses that leave the hand in poor shape */
-    sc += position_after_move(hand_cnt, m, hand_size) / W.pos_resp_divisor;
+    const int prd = weights->pos_resp_divisor > 0 ? weights->pos_resp_divisor : 1;
+    sc += position_after_move(hand_cnt, m, hand_size) / prd;
 
     /* Under threat, prefer heavier responses to seize control */
-    if (ctx->danger) sc += m->count * W.danger_per_card;
+    if (ctx->danger) sc += m->count * weights->danger_per_card;
 
     /* Gatekeeper: play aggressively when directly stopping the landlord's lead. */
-    if (ctx->is_gatekeeper && g->last_player == g->landlord) sc += W.gatekeeper_bonus;
+    if (ctx->is_gatekeeper && g->last_player == g->landlord) sc += weights->gatekeeper_bonus;
 
     /* Pass-value / control card preservation: when a peasant is not in danger,
      * penalise using precious control cards to beat something they don't have
@@ -587,12 +644,12 @@ static int score_response(const Move *m, const BotCtx *ctx,
         int mc[RANK_COUNT_SIZE];
         moves_count_ranks(m->cards, m->count, mc);
 
-        int p2  = W.ctrl_2_penalty;
-        int psj = W.ctrl_sj_penalty;
-        int pbj = W.ctrl_bj_penalty;
+        int p2 = weights->ctrl_2_penalty;
+        int psj = weights->ctrl_sj_penalty;
+        int pbj = weights->ctrl_bj_penalty;
 
         if (ctx->landlord_bid >= 3) {
-            const int red = W.bid3_ctrl_reduction;
+            const int red = weights->bid3_ctrl_reduction;
             p2 = (p2 > red) ? p2 - red : 0;
             psj = (psj > red) ? psj - red : 0;
             pbj = (pbj > red) ? pbj - red : 0;
@@ -606,7 +663,7 @@ static int score_response(const Move *m, const BotCtx *ctx,
     /* Must-stop: landlord has ≤ 1 card and will win next turn if not stopped.
      * Reverse the usual "cheapest beats" preference — play the strongest card. */
     if (ctx->must_stop && m->type != MOVE_BOMB && m->type != MOVE_ROCKET) {
-        sc += W.must_stop_multiplier * eval_move_cost(m);
+        sc += weights->must_stop_multiplier * eval_move_cost(m);
     }
 
     return sc;
@@ -652,7 +709,8 @@ static int should_bomb(const BotCtx *ctx, const GameState *g, const int player) 
  * Public API
  * --------------------------------------------------------------------------- */
 
-int bot_bid(const GameState *g, const int player) {
+int bot_bid_with_weights(const GameState *g, const int player, const BotWeights *weights) {
+    (void) weights;
     const int score = eval_bid_strength(g->hands[player].cards, g->hands[player].count);
 
     int want;
@@ -669,7 +727,12 @@ int bot_bid(const GameState *g, const int player) {
     return want;
 }
 
-Move bot_play(const GameState *g, const int player) {
+int bot_bid(const GameState *g, const int player) {
+    return bot_bid_with_weights(g, player, &DEFAULT_WEIGHTS);
+}
+
+Move bot_play_with_weights(const GameState *g, const int player, const BotWeights *weights) {
+    const BotWeights *w = resolve_weights(weights);
     BotCtx ctx;
     compute_ctx(g, player, &ctx);
 
@@ -735,8 +798,8 @@ Move bot_play(const GameState *g, const int player) {
         }
 
         const int sc = ctx.is_leading
-                           ? score_lead(m, &ctx, hand_size, hand_cnt)
-                           : score_response(m, &ctx, hand_size, hand_cnt, g);
+                           ? score_lead(m, &ctx, hand_size, hand_cnt, w)
+                           : score_response(m, &ctx, hand_size, hand_cnt, g, w);
 
         if (best.type == MOVE_INVALID || sc > best_sc) {
             best = *m;
@@ -771,6 +834,10 @@ Move bot_play(const GameState *g, const int player) {
     return pass;
 }
 
+Move bot_play(const GameState *g, const int player) {
+    return bot_play_with_weights(g, player, &DEFAULT_WEIGHTS);
+}
+
 /* ---------------------------------------------------------------------------
  * Self-play simulation driver
  * --------------------------------------------------------------------------- */
@@ -783,8 +850,9 @@ Move bot_play(const GameState *g, const int player) {
  * bidding (no landlord assigned) are retried with the next seed rather than
  * counted as a wasted game.
  */
-void bot_simulate(const int num_games, const unsigned int base_seed,
-                  int wins_out[GAME_NUM_PLAYERS]) {
+void bot_simulate_with_weights(const int num_games, const unsigned int base_seed,
+                               const BotWeights *per_player_weights[GAME_NUM_PLAYERS],
+                               int wins_out[GAME_NUM_PLAYERS]) {
     for (int p = 0; p < GAME_NUM_PLAYERS; p++) wins_out[p] = 0;
 
     int completed = 0;
@@ -802,7 +870,8 @@ void bot_simulate(const int num_games, const unsigned int base_seed,
         int bid_iters = 0;
         while (g.phase == PHASE_BIDDING && bid_iters++ < 20) {
             const int p = g.bid.current_bidder;
-            const int bid = bot_bid(&g, p);
+            const BotWeights *weights = per_player_weights ? per_player_weights[p] : NULL;
+            const int bid = bot_bid_with_weights(&g, p, weights);
             if (!game_bid(&g, p, bid)) break;
         }
 
@@ -813,7 +882,8 @@ void bot_simulate(const int num_games, const unsigned int base_seed,
         int play_iters = 0;
         while (g.phase == PHASE_PLAYING && play_iters++ < 400) {
             const int p = g.current_player;
-            const Move m = bot_play(&g, p);
+            const BotWeights *weights = per_player_weights ? per_player_weights[p] : NULL;
+            const Move m = bot_play_with_weights(&g, p, weights);
             if (!game_play(&g, p, &m)) break; /* safety: illegal move exits */
         }
 
@@ -822,4 +892,9 @@ void bot_simulate(const int num_games, const unsigned int base_seed,
 
         completed++;
     }
+}
+
+void bot_simulate(const int num_games, const unsigned int base_seed,
+                  int wins_out[GAME_NUM_PLAYERS]) {
+    bot_simulate_with_weights(num_games, base_seed, NULL, wins_out);
 }
