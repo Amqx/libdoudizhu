@@ -10,6 +10,11 @@
 #include <string.h>
 #include <time.h>
 
+// Fix console output in Windows systems
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 #include "game.h"
 #include "bot.h"
 #include "eval.h"
@@ -58,18 +63,75 @@ static void print_hand_sorted(const Hand *h) {
     }
 }
 
+static void print_card_with_gap(Card c, int *need_gap) {
+    if (*need_gap) putchar(' ');
+    print_card(c);
+    *need_gap = 1;
+}
+
+static void print_rank_group(const Card *sorted, int n, int rank, int copies,
+                             int used[RANK_COUNT_SIZE], int *need_gap) {
+    int seen = 0;
+    for (int i = 0; i < n && copies > 0; i++) {
+        if (CARD_RANK(sorted[i]) != rank) continue;
+        if (seen < used[rank]) {
+            seen++;
+            continue;
+        }
+        print_card_with_gap(sorted[i], need_gap);
+        used[rank]++;
+        copies--;
+    }
+}
+
+static void print_move_cards_by_structure(const Move *m) {
+    Card tmp[MOVE_MAX_CARDS];
+    int cnt[RANK_COUNT_SIZE] = {0};
+    int used[RANK_COUNT_SIZE] = {0};
+    int need_gap = 0;
+
+    sort_cards_into(tmp, m->cards, m->count);
+    moves_count_ranks(tmp, m->count, cnt);
+
+    switch (m->type) {
+        case MOVE_TRIPLE_SINGLE:
+            print_rank_group(tmp, m->count, m->rank, 3, used, &need_gap);
+            for (int r = 0; r < RANK_COUNT_SIZE; r++)
+                print_rank_group(tmp, m->count, r, cnt[r] - used[r], used, &need_gap);
+            return;
+        case MOVE_TRIPLE_PAIR:
+            print_rank_group(tmp, m->count, m->rank, 3, used, &need_gap);
+            for (int r = 0; r < RANK_COUNT_SIZE; r++)
+                print_rank_group(tmp, m->count, r, cnt[r] - used[r], used, &need_gap);
+            return;
+        case MOVE_TRIPLE_STRAIGHT_SINGLES:
+        case MOVE_TRIPLE_STRAIGHT_PAIRS:
+            for (int r = m->rank; r < m->rank + m->length; r++)
+                print_rank_group(tmp, m->count, r, 3, used, &need_gap);
+            for (int r = 0; r < RANK_COUNT_SIZE; r++)
+                print_rank_group(tmp, m->count, r, cnt[r] - used[r], used, &need_gap);
+            return;
+        case MOVE_FOUR_TWO_SINGLES:
+        case MOVE_FOUR_TWO_PAIRS:
+            print_rank_group(tmp, m->count, m->rank, 4, used, &need_gap);
+            for (int r = 0; r < RANK_COUNT_SIZE; r++)
+                print_rank_group(tmp, m->count, r, cnt[r] - used[r], used, &need_gap);
+            return;
+        default:
+            for (int i = 0; i < m->count; i++)
+                print_card_with_gap(tmp[i], &need_gap);
+            return;
+    }
+}
+
 static void print_move_inline(const Move *m) {
     if (m->type == MOVE_PASS) {
         fputs("[Pass]", stdout);
         return;
     }
     printf("[%s]", moves_type_name(m->type));
-    Card tmp[MOVE_MAX_CARDS];
-    sort_cards_into(tmp, m->cards, m->count);
-    for (int i = 0; i < m->count; i++) {
-        putchar(' ');
-        print_card(tmp[i]);
-    }
+    putchar(' ');
+    print_move_cards_by_structure(m);
 }
 
 static void hr(void) { puts("─────────────────────────────────────────────────────────"); }
@@ -360,6 +422,10 @@ static void play_round(int scores[GAME_NUM_PLAYERS]) {
  * ========================================================================== */
 
 int main(void) {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
     puts("\n");
     puts("  ╔══════════════════════════════════════════════╗");
     puts("  ║     Dou Di Zhu  —  Fight the Landlord        ║");
