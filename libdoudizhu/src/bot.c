@@ -12,21 +12,110 @@
 #define BOT_MAX_MOVES 512
 
 /* ---------------------------------------------------------------------------
+ * BotWeights – default values
+ *
+ * All scoring magic numbers live here.  Swap this struct out to tune the bot
+ * without touching any logic.
+ * --------------------------------------------------------------------------- */
+
+static const BotWeights DEFAULT_WEIGHTS = {
+    /* Leading */
+    .clear_per_card = 15,
+    .endgame_clear = 10,
+    .chain_length = 4,
+    .feeder_penalty = 3,
+    .pos_lead_divisor = 3,
+    /* Response */
+    .pos_resp_divisor = 4,
+    .danger_per_card = 10,
+    .gatekeeper_bonus = 20,
+    .ctrl_2_penalty = 35,
+    .ctrl_sj_penalty = 50,
+    .ctrl_bj_penalty = 60,
+    .must_stop_multiplier = 2,
+    /* Combination integrity */
+    .break_combo_penalty = 300,
+    .kicker_joker = 80,
+    .kicker_2 = 50,
+    .kicker_ace = 30,
+    .kicker_king = 15,
+    .kicker_bomb_break = 100,
+    .kicker_triple_break = 25,
+    .kicker_pair_break = 10,
+    /* Opponent inference */
+    .bid3_ctrl_reduction = 15,
+    .void_threshold = 2,
+    /* Strategic lead categories */
+    .landlord_weak_bonus = 15,
+    .partner_signal_bonus = 10,
+};
+
+const BotWeights *bot_default_weights(void) { return &DEFAULT_WEIGHTS; }
+
+/* Convenience alias used throughout this file */
+#define W DEFAULT_WEIGHTS
+
+/* ---------------------------------------------------------------------------
+ * Broad move-type categories (for history inference)
+ *
+ * Rather than tracking 14 individual MoveTypes, we bucket them into four
+ * broad families that matter for void/weakness detection.
+ * --------------------------------------------------------------------------- */
+
+#define BROAD_SINGLE 0  /* MOVE_SINGLE, MOVE_TRIPLE_SINGLE, MOVE_FOUR_TWO_SINGLES */
+#define BROAD_PAIR   1  /* MOVE_PAIR, MOVE_PAIR_STRAIGHT, MOVE_TRIPLE_PAIR, etc. */
+#define BROAD_TRIPLE 2  /* MOVE_TRIPLE, MOVE_TRIPLE_STRAIGHT, MOVE_TRIPLE_STRAIGHT_SINGLES */
+#define BROAD_CHAIN  3  /* MOVE_STRAIGHT */
+#define BROAD_COUNT  4
+
+static int move_broad_type(const MoveType t) {
+    switch (t) {
+        case MOVE_SINGLE:
+        case MOVE_TRIPLE_SINGLE:
+        case MOVE_FOUR_TWO_SINGLES:
+            return BROAD_SINGLE;
+        case MOVE_PAIR:
+        case MOVE_PAIR_STRAIGHT:
+        case MOVE_TRIPLE_PAIR:
+        case MOVE_FOUR_TWO_PAIRS:
+        case MOVE_TRIPLE_STRAIGHT_PAIRS:
+            return BROAD_PAIR;
+        case MOVE_TRIPLE:
+        case MOVE_TRIPLE_STRAIGHT:
+        case MOVE_TRIPLE_STRAIGHT_SINGLES:
+            return BROAD_TRIPLE;
+        case MOVE_STRAIGHT:
+            return BROAD_CHAIN;
+        default:
+            return -1; /* bombs, rockets — no category */
+    }
+}
+
+/* ---------------------------------------------------------------------------
  * Internal decision context – computed fresh at each decision point.
  * --------------------------------------------------------------------------- */
 
 typedef struct {
-    int is_peasant; /* 1 if the bot plays for the peasant team */
-    int partner; /* Player index of peasant partner, or PLAYER_NONE */
+    int is_peasant;    /* 1 if the bot plays for the peasant team */
+    int partner;       /* Player index of peasant partner, or PLAYER_NONE */
+    int landlord; /* Player index of landlord, or PLAYER_NONE */
     int is_leading; /* 1 if the bot has no card to beat */
     int cards_left[GAME_NUM_PLAYERS]; /* Remaining hand sizes (public information) */
     int landlord_bid; /* Bid value the landlord committed to (1–3) */
     int high_cards_out; /* Estimated 2s + jokers still in enemy hands */
     int danger; /* An enemy has ≤ 3 cards left (near win) */
-    int endgame; /* Any player has ≤ 5 cards left */
+    int endgame;       /* Any player has ≤ 5 cards left */
     int is_gatekeeper; /* Peasant directly after landlord (aggressive blocker) */
     int is_feeder; /* Peasant directly before landlord (pass small cards) */
-    int must_stop; /* Landlord has ≤ 1 card — must play highest possible */
+    int must_stop;     /* Landlord has ≤ 1 card — must play highest possible */
+
+    /* Opponent Inference ------------------------------------------ */
+    int opp_pass_singles[GAME_NUM_PLAYERS]; /* Pass count on single-family combos */
+    int opp_pass_pairs[GAME_NUM_PLAYERS]; /* Pass count on pair-family combos */
+
+    /* Strategic Lead Categories ----------------------------------- */
+    int partner_lead_type; /* Broad type partner led most (−1 = unknown) */
+    int landlord_pass_type; /* Broad type landlord passed on most (−1 = unknown) */
 } BotCtx;
 
 /* ---------------------------------------------------------------------------
@@ -48,13 +137,97 @@ static void count_played_ranks(const GameState *g, int played[RANK_COUNT_SIZE]) 
     }
 }
 
+/**
+ * @brief Scans the game history and populates opponent-inference fields.
+ *
+ * Round reconstruction: tracks `passes_since_last_play` to detect when a
+ * player wins the round (all others pass) and re-leads.  A non-pass move is
+ * classified as a "new lead" when passes_since_last_play >= 2 (all other
+ * players in the 3-player game have passed since the current table-owner's
+ * last play) or when no owner exists yet (game start).
+ *
+ * accumulates per-player pass counts split by broad type.
+ * finds the partner's most-common lead type and the landlord's
+ *      most-common pass type, used to guide mid-game leading decisions.
+ */
+static void analyze_history(const GameState *g, const int partner,
+                            int opp_pass_singles[GAME_NUM_PLAYERS],
+                            int opp_pass_pairs[GAME_NUM_PLAYERS],
+                            int *partner_lead_type,
+                            int *landlord_pass_type) {
+    int pass_cnt[GAME_NUM_PLAYERS][BROAD_COUNT];
+    int lead_cnt[GAME_NUM_PLAYERS][BROAD_COUNT];
+    memset(pass_cnt, 0, sizeof(pass_cnt));
+    memset(lead_cnt, 0, sizeof(lead_cnt));
+
+    MoveType table_type = MOVE_PASS;
+    int table_owner = PLAYER_NONE;
+    int passes_since = 0; /* passes by others since last non-pass move */
+
+    for (int i = 0; i < g->history_count; i++) {
+        const PlayRecord *rec = &g->history[i];
+
+        if (rec->move.type == MOVE_PASS) {
+            passes_since++;
+            /* Count what type the player passed on (if they weren't the owner) */
+            const int bt = move_broad_type(table_type);
+            if (bt >= 0 && table_owner != PLAYER_NONE && table_owner != rec->player)
+                pass_cnt[rec->player][bt]++;
+        } else {
+            /* Classify as new lead vs. response */
+            const int is_new_lead =
+                    (table_owner == PLAYER_NONE) || (passes_since >= 2);
+            const int bt = move_broad_type(rec->move.type);
+            if (bt >= 0 && is_new_lead)
+                lead_cnt[rec->player][bt]++;
+
+            passes_since = 0;
+            table_type = rec->move.type;
+            table_owner = rec->player;
+        }
+    }
+
+    /* Populate per-player pass-count arrays */
+    for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
+        opp_pass_singles[p] = pass_cnt[p][BROAD_SINGLE];
+        opp_pass_pairs[p] = pass_cnt[p][BROAD_PAIR];
+    }
+
+    /* Partner's preferred lead type: requires > 1 lead in that category */
+    *partner_lead_type = -1;
+    if (partner != PLAYER_NONE) {
+        int best_c = 1, best_t = -1;
+        for (int bt = 0; bt < BROAD_COUNT; bt++) {
+            if (lead_cnt[partner][bt] > best_c) {
+                best_c = lead_cnt[partner][bt];
+                best_t = bt;
+            }
+        }
+        *partner_lead_type = best_t;
+    }
+
+    /* Landlord's most-passed type: requires > 1 pass in that category */
+    *landlord_pass_type = -1;
+    if (g->landlord != PLAYER_NONE) {
+        int best_c = 1, best_t = -1;
+        for (int bt = 0; bt < BROAD_COUNT; bt++) {
+            if (pass_cnt[g->landlord][bt] > best_c) {
+                best_c = pass_cnt[g->landlord][bt];
+                best_t = bt;
+            }
+        }
+        *landlord_pass_type = best_t;
+    }
+}
+
 /* ---------------------------------------------------------------------------
  * Context computation
  * --------------------------------------------------------------------------- */
 
 static void compute_ctx(const GameState *g, const int player, BotCtx *ctx) {
     ctx->is_peasant = game_is_peasant(g, player);
-    ctx->partner = PLAYER_NONE;
+    ctx->partner    = PLAYER_NONE;
+    ctx->landlord   = g->landlord;
 
     if (ctx->is_peasant) {
         for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
@@ -74,7 +247,6 @@ static void compute_ctx(const GameState *g, const int player, BotCtx *ctx) {
 
     /* -------------------------------------------------------------------
      * Infer how many control cards (2s, jokers) are still in enemy hands.
-     *
      * We know: cards in our own hand + cards played in history.
      * Anything else must be distributed among opponents.
      * ------------------------------------------------------------------- */
@@ -85,19 +257,27 @@ static void compute_ctx(const GameState *g, const int player, BotCtx *ctx) {
     moves_count_ranks(g->hands[player].cards, g->hands[player].count, own);
 
     const int twos_seen = played[RANK_2] + own[RANK_2];
-    const int sj_seen = played[RANK_SMALL_JOKER] + own[RANK_SMALL_JOKER];
-    const int bj_seen = played[RANK_BIG_JOKER] + own[RANK_BIG_JOKER];
+    const int sj_seen   = played[RANK_SMALL_JOKER] + own[RANK_SMALL_JOKER];
+    const int bj_seen   = played[RANK_BIG_JOKER]   + own[RANK_BIG_JOKER];
 
     /* Max possible: four 2s + one small joker + one big joker = 6 */
     ctx->high_cards_out = (4 - twos_seen) + (1 - sj_seen) + (1 - bj_seen);
 
     /* -------------------------------------------------------------------
+     * Bidding clue: if the landlord bid 3 they likely hold at
+     * least 2 control cards we have not yet seen.  Ensure our enemy-control
+     * estimate reflects that minimum so we don't under-estimate the threat.
+     * ------------------------------------------------------------------- */
+    if (ctx->is_peasant && ctx->landlord_bid >= 3) {
+        if (ctx->high_cards_out < 2) ctx->high_cards_out = 2;
+    }
+
+    /* -------------------------------------------------------------------
      * Endgame / danger detection.
-     *
      * danger  = an enemy team member has ≤ 3 cards (imminent win threat).
      * endgame = anyone has ≤ 5 cards (accelerate card-clearing).
      * ------------------------------------------------------------------- */
-    ctx->danger = 0;
+    ctx->danger  = 0;
     ctx->endgame = 0;
     for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
         if (ctx->cards_left[p] <= 5) ctx->endgame = 1;
@@ -119,12 +299,12 @@ static void compute_ctx(const GameState *g, const int player, BotCtx *ctx) {
      * want to pass cheap leads to the gatekeeper / partner.
      * ------------------------------------------------------------------- */
     ctx->is_gatekeeper = 0;
-    ctx->is_feeder = 0;
+    ctx->is_feeder     = 0;
     if (ctx->is_peasant && g->landlord != PLAYER_NONE) {
-        const int after_landlord = game_next_player(g, g->landlord);
+        const int after_landlord  = game_next_player(g, g->landlord);
         const int before_landlord = game_next_player(g, after_landlord);
         ctx->is_gatekeeper = (player == after_landlord);
-        ctx->is_feeder = (player == before_landlord);
+        ctx->is_feeder     = (player == before_landlord);
     }
 
     /* -------------------------------------------------------------------
@@ -136,6 +316,18 @@ static void compute_ctx(const GameState *g, const int player, BotCtx *ctx) {
     if (ctx->is_peasant && g->landlord != PLAYER_NONE) {
         if (ctx->cards_left[g->landlord] <= 1) ctx->must_stop = 1;
     }
+
+    /* -------------------------------------------------------------------
+     * History inference.
+     *
+     * Populate pass-count arrays and infer the partner's signalled lead type
+     * plus the landlord's demonstrated weakness type.
+     * ------------------------------------------------------------------- */
+    analyze_history(g, ctx->partner,
+                    ctx->opp_pass_singles,
+                    ctx->opp_pass_pairs,
+                    &ctx->partner_lead_type,
+                    &ctx->landlord_pass_type);
 }
 
 /* ---------------------------------------------------------------------------
@@ -181,6 +373,8 @@ static int breaks_combination(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]
  * Using a control card (2, Ace, Joker) or a bomb component as a kicker is
  * wasteful.  This penalty discourages those choices so that the bot attaches
  * its most "useless" singles or pairs instead.
+ *
+ * Constants are drawn from BotWeights (W) so they can be tuned centrally.
  */
 static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
     /* Only moves with kicker slots are penalised */
@@ -189,17 +383,14 @@ static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
     switch (m->type) {
         case MOVE_TRIPLE_SINGLE:
         case MOVE_TRIPLE_STRAIGHT_SINGLES:
-            kicker_need = 1;
-            core_min = 3;
-            break;
+            kicker_need = 1; core_min = 3; break;
         case MOVE_TRIPLE_PAIR:
         case MOVE_TRIPLE_STRAIGHT_PAIRS:
             kicker_need = 2;
             core_min = 3;
             break;
         case MOVE_FOUR_TWO_SINGLES:
-            kicker_need = 1;
-            core_min = 4;
+            kicker_need = 1; core_min = 4;
             break;
         case MOVE_FOUR_TWO_PAIRS:
             kicker_need = 2;
@@ -214,21 +405,21 @@ static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
 
     int penalty = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (mc[r] != kicker_need) continue; /* not a kicker slot for this rank */
-        if (mc[r] >= core_min) continue; /* this is a core rank, not a kicker */
+        if (mc[r] != kicker_need) continue;
+        if (mc[r] >= core_min) continue;
 
         /* Base penalty: higher rank = more valuable = worse kicker */
         int val;
-        if (r == RANK_BIG_JOKER || r == RANK_SMALL_JOKER) val = 80;
-        else if (r == RANK_2) val = 50;
-        else if (r == RANK_A) val = 30;
-        else if (r == RANK_K) val = 15;
+        if (r == RANK_BIG_JOKER || r == RANK_SMALL_JOKER) val = W.kicker_joker;
+        else if (r == RANK_2) val = W.kicker_2;
+        else if (r == RANK_A) val = W.kicker_ace;
+        else if (r == RANK_K) val = W.kicker_king;
         else val = r;
 
-        /* Extra penalty for breaking latent bomb / pair / triple potential */
-        if (hand_cnt[r] >= 4 && kicker_need < 4) val += 100;
-        else if (hand_cnt[r] == 3 && kicker_need < 3) val += 25;
-        else if (hand_cnt[r] == 2 && kicker_need < 2) val += 10;
+        /* Extra penalty for breaking latent bomb / pair / triple potential. */
+        if      (hand_cnt[r] >= 4) val += W.kicker_bomb_break;
+        else if (hand_cnt[r] == 3) val += W.kicker_triple_break;
+        else if (hand_cnt[r] == 2 && kicker_need < 2) val += W.kicker_pair_break;
 
         penalty += val;
     }
@@ -236,7 +427,7 @@ static int kicker_penalty(const Move *m, const int hand_cnt[RANK_COUNT_SIZE]) {
 }
 
 /* ---------------------------------------------------------------------------
- * Post-move position evaluation (Goal 3 + 4)
+ * Post-move position evaluation
  * --------------------------------------------------------------------------- */
 
 /**
@@ -277,6 +468,8 @@ static int position_after_move(const int hand_cnt[RANK_COUNT_SIZE],
  *  - In early game, bonus for leading chain moves (straights, airplanes).
  *  - In endgame, weight card-clearing more heavily.
  *  - Bombs and rockets are scored very low (saved for when needed).
+ *  - Bonus for leading types the landlord is weak/void in, or
+ *    types the partner has signalled.
  */
 static int score_lead(const Move *m, const BotCtx *ctx,
                       const int hand_size, const int hand_cnt[RANK_COUNT_SIZE]) {
@@ -286,24 +479,22 @@ static int score_lead(const Move *m, const BotCtx *ctx,
     int sc = 0;
 
     /* Clearing more cards per turn is intrinsically valuable */
-    sc += m->count * 15;
+    sc += m->count * W.clear_per_card;
 
     /* Prefer weaker ranks so control cards are preserved */
     sc -= eval_move_cost(m);
 
     /* Heavy penalty for breaking up a latent bomb or rocket */
-    if (breaks_combination(m, hand_cnt)) sc -= 300;
+    if (breaks_combination(m, hand_cnt)) sc -= W.break_combo_penalty;
 
     /* Penalty for attaching high-value or bomb-breaking cards as kickers */
     sc -= kicker_penalty(m, hand_cnt);
 
-    /* Post-move position: reward moves that leave the hand in good shape.
-     * This captures shape preservation (don't break a straight) and control
-     * cost (don't waste a 2 as a kicker) without separate explicit checks. */
-    sc += position_after_move(hand_cnt, m, hand_size) / 3;
+    /* Post-move position: reward moves that leave the hand in good shape. */
+    sc += position_after_move(hand_cnt, m, hand_size) / W.pos_lead_divisor;
 
     /* In endgame, accelerate: clear as many cards as possible each turn */
-    if (ctx->endgame) sc += m->count * 10;
+    if (ctx->endgame) sc += m->count * W.endgame_clear;
 
     /* Early game: bonus for leading chain combos to reduce hand size quickly
      * and probe what opponents have. */
@@ -314,7 +505,7 @@ static int score_lead(const Move *m, const BotCtx *ctx,
             case MOVE_TRIPLE_STRAIGHT:
             case MOVE_TRIPLE_STRAIGHT_SINGLES:
             case MOVE_TRIPLE_STRAIGHT_PAIRS:
-                sc += m->length * 4;
+                sc += m->length * W.chain_length;
                 break;
             default: break;
         }
@@ -322,7 +513,27 @@ static int score_lead(const Move *m, const BotCtx *ctx,
 
     /* Feeder (peasant before landlord): prefer smaller leads to give the
      * gatekeeper / partner opportunities to respond to the landlord. */
-    if (ctx->is_feeder) sc -= m->count * 3;
+    if (ctx->is_feeder) sc -= m->count * W.feeder_penalty;
+
+    /* -------------------------------------------------------------------
+     * Exploit history-inferred weaknesses and partner signals.
+     *
+     * landlord_pass_type: the broad type the landlord has passed on the most.
+     *   If we lead that type, the landlord is likely unable to respond strongly.
+     *
+     * partner_lead_type: the broad type our partner has led the most.
+     *   Matching it reinforces their preferred avenue of attack (mid-game only,
+     *   since in endgame we clear as fast as possible regardless of type).
+     * ------------------------------------------------------------------- */
+    if (ctx->is_peasant) {
+        const int lead_bt = move_broad_type(m->type);
+        if (lead_bt >= 0) {
+            if (lead_bt == ctx->landlord_pass_type)
+                sc += W.landlord_weak_bonus;
+            if (!ctx->endgame && lead_bt == ctx->partner_lead_type)
+                sc += W.partner_signal_bonus;
+        }
+    }
 
     return sc;
 }
@@ -337,6 +548,8 @@ static int score_lead(const Move *m, const BotCtx *ctx,
  *  - Post-move position: factor in remaining hand quality after responding.
  *  - In danger, prefer heavier responses to keep pressure on the enemy.
  *  - Control card preservation: penalise using 2s/jokers unless must-stop.
+ *  - When the landlord bid 3, reduce the control-card save penalty
+ *    because the landlord likely has many strong cards and must be fought.
  */
 static int score_response(const Move *m, const BotCtx *ctx,
                           const int hand_size, const int hand_cnt[RANK_COUNT_SIZE],
@@ -349,38 +562,51 @@ static int score_response(const Move *m, const BotCtx *ctx,
     sc -= eval_move_cost(m);
 
     /* Avoid wasting a bomb component as a kicker */
-    if (breaks_combination(m, hand_cnt)) sc -= 300;
+    if (breaks_combination(m, hand_cnt)) sc -= W.break_combo_penalty;
 
     /* Penalty for attaching high-value or bomb-breaking cards as kickers */
     sc -= kicker_penalty(m, hand_cnt);
 
     /* Post-move position: penalise responses that leave the hand in poor shape */
-    sc += position_after_move(hand_cnt, m, hand_size) / 4;
+    sc += position_after_move(hand_cnt, m, hand_size) / W.pos_resp_divisor;
 
     /* Under threat, prefer heavier responses to seize control */
-    if (ctx->danger) sc += m->count * 10;
+    if (ctx->danger) sc += m->count * W.danger_per_card;
 
-    /* Gatekeeper: play aggressively when directly stopping the landlord's lead.
-     * The gatekeeper is the first respondent to every landlord move, so they
-     * should prefer to beat it rather than letting it stand for the feeder. */
-    if (ctx->is_gatekeeper && g->last_player == g->landlord) sc += 20;
+    /* Gatekeeper: play aggressively when directly stopping the landlord's lead. */
+    if (ctx->is_gatekeeper && g->last_player == g->landlord) sc += W.gatekeeper_bonus;
 
-    /* Pass-value / control card preservation (Goal 10): when a peasant is not
-     * in danger of losing, penalise using precious control cards to beat
-     * something they don't have to stop.  This makes the bot prefer to pass
-     * (score stays at 0) rather than burning a 2 or Joker. */
+    /* Pass-value / control card preservation: when a peasant is not in danger,
+     * penalise using precious control cards to beat something they don't have
+     * to stop.  This makes the bot prefer to pass rather than burn a 2 / Joker.
+     *
+     * Bid clue: if the landlord bid 3 they almost certainly have strong
+     * control cards.  Reduce the save-penalty so peasants are more willing to
+     * spend control cards to hold the line against a strong-hand landlord. */
     if (ctx->is_peasant && !ctx->must_stop && !ctx->danger) {
         int mc[RANK_COUNT_SIZE];
         moves_count_ranks(m->cards, m->count, mc);
-        sc -= mc[RANK_2] * 35;
-        sc -= mc[RANK_SMALL_JOKER] * 50;
-        sc -= mc[RANK_BIG_JOKER] * 60;
+
+        int p2  = W.ctrl_2_penalty;
+        int psj = W.ctrl_sj_penalty;
+        int pbj = W.ctrl_bj_penalty;
+
+        if (ctx->landlord_bid >= 3) {
+            const int red = W.bid3_ctrl_reduction;
+            p2 = (p2 > red) ? p2 - red : 0;
+            psj = (psj > red) ? psj - red : 0;
+            pbj = (pbj > red) ? pbj - red : 0;
+        }
+
+        sc -= mc[RANK_2] * p2;
+        sc -= mc[RANK_SMALL_JOKER] * psj;
+        sc -= mc[RANK_BIG_JOKER] * pbj;
     }
 
     /* Must-stop: landlord has ≤ 1 card and will win next turn if not stopped.
      * Reverse the usual "cheapest beats" preference — play the strongest card. */
     if (ctx->must_stop && m->type != MOVE_BOMB && m->type != MOVE_ROCKET) {
-        sc += 2 * eval_move_cost(m);
+        sc += W.must_stop_multiplier * eval_move_cost(m);
     }
 
     return sc;
@@ -398,28 +624,22 @@ static int score_response(const Move *m, const BotCtx *ctx,
  *  - We are in endgame with a high-stakes round (landlord bid >= 2), or
  *  - The opponent we are targeting has 5 or fewer cards, or
  *  - We have a "ready-to-go" hand (≤ 2 plays to clear) and are in endgame —
- *    bomb to seize the lead and potentially win in 1-2 more turns (Goal 7).
+ *    bomb to seize the lead and potentially win in 1-2 more turns.
  */
 static int should_bomb(const BotCtx *ctx, const GameState *g, const int player) {
-    /* Always bomb to stop an imminent enemy win */
     if (ctx->danger) return 1;
-
-    /* High-stakes endgame: the score multiplier makes it worthwhile */
     if (ctx->endgame && ctx->landlord_bid >= 2) return 1;
 
     if (ctx->is_peasant) {
-        /* Peasant: bomb if landlord is approaching their last few cards */
         if (g->hands[g->landlord].count <= 5) return 1;
     } else {
-        /* Landlord: bomb if either peasant is close to clearing their hand */
         for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
             if (game_is_peasant(g, p) && g->hands[p].count <= 5) return 1;
         }
     }
 
-    /* Initiative / tempo (Goal 7): bomb to seize the lead when our hand is
-     * nearly clean and we are in endgame.  If we bomb now and get the lead,
-     * we can win in 1-2 more plays. */
+    /* Initiative / tempo: bomb to seize the lead when our hand is
+     * nearly clean and we are in endgame. */
     if (ctx->endgame) {
         const int mp = eval_min_plays(g->hands[player].cards, g->hands[player].count);
         if (mp <= 2) return 1;
@@ -433,16 +653,14 @@ static int should_bomb(const BotCtx *ctx, const GameState *g, const int player) 
  * --------------------------------------------------------------------------- */
 
 int bot_bid(const GameState *g, const int player) {
-    /* Use bid-specific strength (bombs, rockets, 2s) rather than generic scoring */
     const int score = eval_bid_strength(g->hands[player].cards, g->hands[player].count);
 
     int want;
-    if (score >= 50) want = 3;
+    if      (score >= 50) want = 3;
     else if (score >= 30) want = 2;
     else if (score >= 15) want = 1;
-    else return 0; /* hand too weak — pass */
+    else return 0;
 
-    /* Bid must strictly exceed the current highest bid */
     if (want <= g->bid.highest_score) {
         if (g->bid.highest_score < 3) want = g->bid.highest_score + 1;
         else return 0;
@@ -479,7 +697,6 @@ Move bot_play(const GameState *g, const int player) {
         ctx.partner != PLAYER_NONE &&
         g->last_player == ctx.partner &&
         !ctx.danger) {
-        /* Check if we have a move that clears our entire hand (win immediately) */
         int can_win = 0;
         for (int i = 0; i < n; i++) {
             if (buf[i].type != MOVE_PASS && buf[i].count == hand_size) {
@@ -497,11 +714,9 @@ Move bot_play(const GameState *g, const int player) {
      * Score every legal move; separate bombs from normal moves since the
      * decision to bomb depends on context rather than just cost.
      * ------------------------------------------------------------------- */
-    Move best = {0};
-    best.type = MOVE_INVALID;
+    Move best      = {0}; best.type      = MOVE_INVALID;
+    Move best_bomb = {0}; best_bomb.type = MOVE_INVALID;
     int best_sc = -99999;
-    Move best_bomb = {0};
-    best_bomb.type = MOVE_INVALID;
     int best_bomb_cost = 99999;
 
     for (int i = 0; i < n; i++) {
@@ -513,7 +728,7 @@ Move bot_play(const GameState *g, const int player) {
         if (is_bomb) {
             const int cost = eval_move_cost(m);
             if (best_bomb.type == MOVE_INVALID || cost < best_bomb_cost) {
-                best_bomb = *m;
+                best_bomb      = *m;
                 best_bomb_cost = cost;
             }
             continue;
@@ -535,18 +750,14 @@ Move bot_play(const GameState *g, const int player) {
      *                     no normal moves exist (hand is all bombs).
      *   - When following: prefer a normal move; bomb only when justified.
      *
-     * Pass-value (Goal 10): when following, if the best normal response has
+     * Pass-value: when following, if the best normal response has
      * a negative score it means playing it actively costs us (e.g. burning
      * a control card we'd rather keep).  In that case, pass instead.
-     * This allows the bot to save 2s / jokers for when they really matter.
      * ------------------------------------------------------------------- */
     if (ctx.is_leading) {
         if (best.type != MOVE_INVALID) return best;
-        if (best_bomb.type != MOVE_INVALID) return best_bomb; /* forced */
+        if (best_bomb.type != MOVE_INVALID) return best_bomb;
     } else {
-        /* Pass-value: if the best non-bomb response scores below zero the bot
-         * is being "asked" to spend a card worth more than the tactical gain.
-         * Prefer to pass rather than waste a precious control card. */
         if (best.type != MOVE_INVALID && best_sc < 0 && !ctx.danger && !ctx.must_stop) {
             const Move pass = {MOVE_PASS};
             return pass;
@@ -556,7 +767,59 @@ Move bot_play(const GameState *g, const int player) {
             return best_bomb;
     }
 
-    /* No playable move, or chose not to bomb — pass */
     const Move pass = {MOVE_PASS};
     return pass;
+}
+
+/* ---------------------------------------------------------------------------
+ * Self-play simulation driver
+ * --------------------------------------------------------------------------- */
+
+/**
+ * @brief Runs num_games bot-vs-bot games and tallies per-player win counts.
+ *
+ * Each game uses seed (base_seed + game_index) for the shuffle so results are
+ * deterministic and reproducible.  Games in which every bot passes during
+ * bidding (no landlord assigned) are retried with the next seed rather than
+ * counted as a wasted game.
+ */
+void bot_simulate(const int num_games, const unsigned int base_seed,
+                  int wins_out[GAME_NUM_PLAYERS]) {
+    for (int p = 0; p < GAME_NUM_PLAYERS; p++) wins_out[p] = 0;
+
+    int completed = 0;
+    unsigned int seed = base_seed;
+
+    while (completed < num_games) {
+        GameState g;
+        game_init(&g);
+        game_reset_deck(&g);
+        game_shuffle(&g, seed++);
+        game_deal(&g);
+        game_start_bidding(&g, 0);
+
+        /* Bidding phase */
+        int bid_iters = 0;
+        while (g.phase == PHASE_BIDDING && bid_iters++ < 20) {
+            const int p = g.bid.current_bidder;
+            const int bid = bot_bid(&g, p);
+            if (!game_bid(&g, p, bid)) break;
+        }
+
+        /* Skip games where no one wanted to be landlord */
+        if (g.phase != PHASE_PLAYING) continue;
+
+        /* Playing phase */
+        int play_iters = 0;
+        while (g.phase == PHASE_PLAYING && play_iters++ < 400) {
+            const int p = g.current_player;
+            const Move m = bot_play(&g, p);
+            if (!game_play(&g, p, &m)) break; /* safety: illegal move exits */
+        }
+
+        if (g.phase == PHASE_OVER && g.winner >= 0 && g.winner < GAME_NUM_PLAYERS)
+            wins_out[g.winner]++;
+
+        completed++;
+    }
 }
