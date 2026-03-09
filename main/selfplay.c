@@ -20,9 +20,7 @@ int main(int argc, char **argv) {
     SelfPlayTuneConfig cfg = {
         .generations = 1024,
         .games_per_generation = 256,
-        .initial_step = 30,
-        .min_weight = 0,
-        .max_weight = 1000,
+        .initial_step = 20,
         .seed = 10u,
     };
     SelfPlayTuneResult result;

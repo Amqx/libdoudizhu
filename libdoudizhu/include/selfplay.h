@@ -32,9 +32,16 @@ typedef struct {
 typedef struct {
     int generations; /**< Number of candidate mutations to evaluate. */
     int games_per_generation; /**< Games used to score each candidate. */
-    int initial_step; /**< Initial mutation magnitude in weight units. */
-    int min_weight; /**< Lower clamp for every weight field. */
-    int max_weight; /**< Upper clamp for every weight field. */
+    /**
+     * Initial mutation size as a percentage (0–100) of each field's sensible
+     * range (from bot_weights_min / bot_weights_max).  Anneals linearly to 1%
+     * over the run.  A value of 20 means the first mutations move each field
+     * by ≈20 % of its range, giving coarse exploration early and fine tuning
+     * late.  Because it is relative to per-field ranges, the same value works
+     * well for both narrow fields (pos_lead_divisor: 1–10) and wide ones
+     * (break_combo_penalty: 0–1000).
+     */
+    int initial_step;
     unsigned int seed; /**< PRNG seed for mutation and match generation. */
 } SelfPlayTuneConfig;
 

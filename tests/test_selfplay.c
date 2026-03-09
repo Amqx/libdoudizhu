@@ -29,14 +29,12 @@ static void test_match_stats_sum_correctly(void) {
 }
 
 static void test_tuner_respects_bounds(void) {
-    begin_suite("selfplay: tuner mutates within configured bounds");
+    begin_suite("selfplay: tuner mutates within per-field bounds");
 
     SelfPlayTuneConfig cfg = {
         .generations = 8,
         .games_per_generation = 6,
-        .initial_step = 5,
-        .min_weight = 0,
-        .max_weight = 80,
+        .initial_step = 20,
         .seed = 99u,
     };
     SelfPlayTuneResult result;
@@ -50,8 +48,8 @@ static void test_tuner_respects_bounds(void) {
 
     for (int i = 0; i < count; i++) {
         const int value = bot_weights_get(&result.best_weights, i);
-        EXPECT(value >= cfg.min_weight && value <= cfg.max_weight,
-               "all tuned weights remain within configured bounds");
+        EXPECT(value >= bot_weights_min(i) && value <= bot_weights_max(i),
+               "all tuned weights remain within per-field bounds");
     }
 }
 

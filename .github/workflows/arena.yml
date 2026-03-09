@@ -5,6 +5,14 @@
 # Each shard is an independent selfplay_tune() run with a unique PRNG seed.
 # After all shards finish, the combine job picks the champion by head-to-head
 # win count (seat0_wins in the final arena: tuned weights vs default weights).
+#
+# Tuning methodology (as of the per-field-bounds / common-seed refactor):
+#   - Mutations are a percentage of each field's bot_weights_min/max range,
+#     so a single initial_step value works for all fields regardless of scale.
+#   - Incumbent and candidate are evaluated on identical deals (common random
+#     numbers) so win-rate differences reflect strategy, not hand luck.
+#   - Each candidate is tested in all three seats against incumbent opponents
+#     to get a role-balanced score (landlord + peasant).
 
 name: Arena
 
@@ -22,14 +30,14 @@ on:
         default: "1000"
         type: string
       games_per_generation:
-        description: "Games used to score each candidate per generation"
+        description: "Games used to score each candidate per generation (higher = less noise)"
         required: false
-        default: "1000"
+        default: "2000"
         type: string
       initial_step:
-        description: "Starting mutation magnitude (weight units, anneals to 1)"
+        description: "Starting mutation size as % of each field's range (anneals to 1%). 20 = explore 20% of range initially."
         required: false
-        default: "30"
+        default: "20"
         type: string
       seed_base:
         description: "Base PRNG seed; shard i uses seed_base + i*7919"
@@ -40,8 +48,8 @@ on:
 env:
   DEFAULT_SHARDS: "10"
   DEFAULT_GENS: "1000"
-  DEFAULT_GPG: "1000"
-  DEFAULT_STEP: "30"
+  DEFAULT_GPG: "2000"
+  DEFAULT_STEP: "20"
   DEFAULT_SEED: "42"
 
 jobs:
@@ -59,8 +67,8 @@ jobs:
 
       - name: Smoke-test binary
         run: |
-          # Quick sanity check: 2 generations, 4 games/gen — should finish in < 1s.
-          build/selfplay 2 4 5 1 | grep -q "attempted=2"
+          # Quick sanity check: 2 generations, 4 games/gen, 20% step, seed 1.
+          build/selfplay 2 4 20 1 | grep -q "attempted=2"
           echo "Smoke test passed."
 
       - name: Upload binary

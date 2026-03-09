@@ -27,26 +27,15 @@ static unsigned int next_rng(unsigned int *state) {
 static void fill_default_cfg(SelfPlayTuneConfig *cfg) {
     cfg->generations = 64;
     cfg->games_per_generation = 24;
-    cfg->initial_step = 8;
-    cfg->min_weight = 0;
-    cfg->max_weight = 400;
+    cfg->initial_step = 20;
     cfg->seed = 1u;
 }
 
-static void clamp_weights(BotWeights *weights, const int lo, const int hi) {
+static void clamp_weights(BotWeights *weights) {
     const int count = bot_weights_count();
     for (int i = 0; i < count; i++) {
-        const char *name = bot_weights_name(i);
-        int lower = lo;
         const int value = bot_weights_get(weights, i);
-
-        /* Divisor fields must stay positive to avoid score-time division by zero. */
-        if (name &&
-            (!strcmp(name, "pos_lead_divisor") || !strcmp(name, "pos_resp_divisor"))) {
-            if (lower < 1) lower = 1;
-        }
-
-        bot_weights_set(weights, i, clamp_int(value, lower, hi));
+        bot_weights_set(weights, i, clamp_int(value, bot_weights_min(i), bot_weights_max(i)));
     }
 }
 
@@ -152,18 +141,11 @@ void selfplay_tune(const BotWeights *initial_weights, const SelfPlayTuneConfig *
         cfg.generations = default_or_positive(cfg_in->generations, cfg.generations);
         cfg.games_per_generation = default_or_positive(cfg_in->games_per_generation, cfg.games_per_generation);
         cfg.initial_step = default_or_positive(cfg_in->initial_step, cfg.initial_step);
-        cfg.min_weight = cfg_in->min_weight;
-        cfg.max_weight = cfg_in->max_weight;
         cfg.seed = cfg_in->seed ? cfg_in->seed : cfg.seed;
-    }
-    if (cfg.max_weight < cfg.min_weight) {
-        const int tmp = cfg.max_weight;
-        cfg.max_weight = cfg.min_weight;
-        cfg.min_weight = tmp;
     }
 
     result_out->initial_weights = initial_weights ? *initial_weights : *bot_default_weights();
-    clamp_weights(&result_out->initial_weights, cfg.min_weight, cfg.max_weight);
+    clamp_weights(&result_out->initial_weights);
     result_out->best_weights = result_out->initial_weights;
     selfplay_stats_reset(&result_out->final_arena, cfg.games_per_generation);
     result_out->generations_attempted = 0;
@@ -178,12 +160,22 @@ void selfplay_tune(const BotWeights *initial_weights, const SelfPlayTuneConfig *
     for (int gen = 0; gen < cfg.generations; gen++) {
         const int field = (int) (next_rng(&rng) % (unsigned int) weight_count);
         const int direction = (next_rng(&rng) & 1u) ? 1 : -1;
-        int step = cfg.initial_step - (gen * cfg.initial_step) / cfg.generations;
+
+        /* Step is a percentage of this field's sensible range, annealing from
+         * initial_step% down to 1% over the run.  This makes the same step
+         * value meaningful for both narrow fields (pos_lead_divisor: 1–10) and
+         * wide ones (break_combo_penalty: 0–1000). */
+        const int field_min = bot_weights_min(field);
+        const int field_max = bot_weights_max(field);
+        const int field_range = field_max > field_min ? field_max - field_min : 1;
+        int pct = cfg.initial_step - (gen * cfg.initial_step) / cfg.generations;
+        if (pct < 1) pct = 1;
+        int step = (field_range * pct + 50) / 100; /* round to nearest */
         if (step < 1) step = 1;
 
         BotWeights candidate = incumbent;
         const int current = bot_weights_get(&candidate, field);
-        const int mutated = clamp_int(current + direction * step, cfg.min_weight, cfg.max_weight);
+        const int mutated = clamp_int(current + direction * step, field_min, field_max);
 
         result_out->last_field_index = field;
         result_out->last_step = step;
@@ -192,10 +184,13 @@ void selfplay_tune(const BotWeights *initial_weights, const SelfPlayTuneConfig *
         if (mutated == current) continue;
         bot_weights_set(&candidate, field, mutated);
 
+        /* Use the same seed for both evaluations (common random numbers) so
+         * that incumbent and candidate play identical deals and any win-rate
+         * difference reflects strategy, not luck. */
         const int incumbent_score = evaluate_candidate(&incumbent, &incumbent,
-                                                       cfg.games_per_generation, rng + 17u);
+                                                       cfg.games_per_generation, rng);
         const int candidate_score = evaluate_candidate(&incumbent, &candidate,
-                                                       cfg.games_per_generation, rng + 7919u);
+                                                       cfg.games_per_generation, rng);
 
         if (candidate_score > incumbent_score) {
             incumbent = candidate;

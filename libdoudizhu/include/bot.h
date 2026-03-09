@@ -103,6 +103,24 @@ int bot_weights_get(const BotWeights *weights, int index);
 int bot_weights_set(BotWeights *weights, int index, int value);
 
 /**
+ * @brief Returns the minimum sensible value for a BotWeights field.
+ * @param index Zero-based field index in [0, bot_weights_count()).
+ * @return Minimum value, or 0 for an invalid index.
+ * @details Use these bounds in tuning/arena code instead of a flat [0, N]
+ *          range.  Fields such as pos_lead_divisor have a minimum of 1 to
+ *          avoid divide-by-zero; count fields like void_threshold are capped
+ *          well below 1000.
+ */
+int bot_weights_min(int index);
+
+/**
+ * @brief Returns the maximum sensible value for a BotWeights field.
+ * @param index Zero-based field index in [0, bot_weights_count()).
+ * @return Maximum value, or 0 for an invalid index.
+ */
+int bot_weights_max(int index);
+
+/**
  * @brief Decides a bid value for a bot player.
  * @param g Pointer to the current GameState (must be in PHASE_BIDDING).
  * @param player Index of the player whose bid is being decided.
@@ -164,6 +182,32 @@ Move bot_play_with_weights(const GameState *g, int player, const BotWeights *wei
  *          skipped and do not count toward num_games.
  */
 void bot_simulate(int num_games, unsigned int base_seed, int wins_out[GAME_NUM_PLAYERS]);
+
+/**
+ * @brief Evaluates candidate weights against default-weight opponents.
+ *
+ * Runs two independent series of num_games games each:
+ *  - Series A: candidate in seat 0 (landlord seat), default in seats 1 & 2.
+ *  - Series B: default in seat 0, candidate in seats 1 & 2 (peasant team).
+ *
+ * This avoids the self-play degeneracy problem where all three bots use the
+ * same weights and the total win count is always == num_games regardless of
+ * weight quality.  By fixing the opponent weights, the fitness signal
+ * reflects genuine improvement over the baseline.
+ *
+ * Because the landlord role (1 vs 2) and peasant role (2 vs 1) are
+ * fundamentally different objectives, they are reported separately so
+ * the caller can blend them as appropriate for their optimiser.
+ *
+ * @param candidate        Weights being evaluated; NULL uses defaults.
+ * @param num_games        Games per series (total games run = 2 * num_games).
+ * @param base_seed        PRNG seed for series A; series B uses base_seed + num_games.
+ * @param wins_as_landlord Filled with candidate win count from series A (out of num_games).
+ * @param wins_as_peasant  Filled with peasant-team win count from series B (out of num_games).
+ *                         A peasant team win is any game where the winner is not seat 0.
+ */
+void bot_evaluate_weights(const BotWeights *candidate, int num_games, unsigned int base_seed,
+                          int *wins_as_landlord, int *wins_as_peasant);
 
 /**
  * @brief Weight-configurable variant of bot_simulate.
