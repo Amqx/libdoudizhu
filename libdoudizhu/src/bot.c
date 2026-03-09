@@ -20,33 +20,33 @@
 
 static const BotWeights DEFAULT_WEIGHTS = {
     /* Leading */
-    .clear_per_card = 15,
+    .clear_per_card = 16,
     .endgame_clear = 10,
-    .chain_length = 4,
+    .chain_length = 7,
     .feeder_penalty = 3,
-    .pos_lead_divisor = 3,
+    .pos_lead_divisor = 4,
     /* Response */
     .pos_resp_divisor = 4,
     .danger_per_card = 10,
     .gatekeeper_bonus = 20,
-    .ctrl_2_penalty = 35,
+    .ctrl_2_penalty = 38,
     .ctrl_sj_penalty = 50,
-    .ctrl_bj_penalty = 60,
+    .ctrl_bj_penalty = 143,
     .must_stop_multiplier = 2,
     /* Combination integrity */
     .break_combo_penalty = 300,
     .kicker_joker = 80,
-    .kicker_2 = 50,
+    .kicker_2 = 108,
     .kicker_ace = 30,
-    .kicker_king = 15,
+    .kicker_king = 60,
     .kicker_bomb_break = 100,
-    .kicker_triple_break = 25,
+    .kicker_triple_break = 99,
     .kicker_pair_break = 10,
     /* Opponent inference */
-    .bid3_ctrl_reduction = 15,
+    .bid3_ctrl_reduction = 60,
     .void_threshold = 2,
     /* Strategic lead categories */
-    .landlord_weak_bonus = 15,
+    .landlord_weak_bonus = 18,
     .partner_signal_bonus = 10,
 };
 
