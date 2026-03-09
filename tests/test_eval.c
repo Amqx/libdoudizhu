@@ -316,7 +316,55 @@ static void test_play_position_counts_matches_card_variant(void) {
  * main
  * --------------------------------------------------------------------------- */
 
+static void test_min_plays_complex_airplane(void) {
+    begin_suite("eval_min_plays: airplane with kickers");
+    // 333 444 + 5 + 6 (2 sets + 2 kickers = 1 play)
+    Card hand[8];
+    fill_rank(hand, RANK_3, 3);
+    fill_rank(hand + 3, RANK_4, 3);
+    hand[6] = card(RANK_5, 0);
+    hand[7] = card(RANK_6, 0);
+    EXPECT_EQ(eval_min_plays(hand, 8), 1, "airplane with 2 kickers = 1 play");
+}
+
+static void test_min_plays_nested_straights(void) {
+    begin_suite("eval_min_plays: nested/overlapping straights");
+    // 3-4-5-6-7-8-9 (7-card straight)
+    Card hand[7];
+    for (int i = 0; i < 7; i++) hand[i] = card(RANK_3 + i, 0);
+    EXPECT_EQ(eval_min_plays(hand, 7), 1, "7-card straight = 1 play");
+}
+
+static void test_bid_strength_vs_hand_score(void) {
+    begin_suite("eval_bid_strength: different from eval_hand_score");
+    Card hand[4];
+    fill_rank(hand, RANK_2, 4); // bomb of 2s
+    int s1 = eval_hand_score(hand, 4);
+    int s2 = eval_bid_strength(hand, 4);
+    // Both should be high, but they are calculated differently.
+    EXPECT(s1 > 0 && s2 > 0, "both give positive scores for bomb of 2s");
+}
+
+static void test_play_position_extreme(void) {
+    begin_suite("eval_play_position: best and worst cases");
+    Card best[2] = {card(RANK_SMALL_JOKER, 0), card(RANK_BIG_JOKER, 0)};
+    Card worst[1] = {card(RANK_3, 0)};
+
+    int p_best = eval_play_position(best, 2);
+    int p_worst = eval_play_position(worst, 1);
+    EXPECT(p_best > p_worst, "rocket has better play position than single 3");
+}
+
+static void test_min_plays_airplane_no_kickers(void) {
+    begin_suite("eval_min_plays: airplane without kickers");
+    Card hand[6];
+    fill_rank(hand, RANK_5, 3);
+    fill_rank(hand + 3, RANK_6, 3);
+    EXPECT_EQ(eval_min_plays(hand, 6), 1, "333 444 = 1 play");
+}
+
 int main(void) {
+    printf("--- Test file: %s ---\n", __FILE__);
     test_score_strong_beats_weak();
     test_score_rocket_adds_to_score();
     test_score_bomb_adds_to_score();
@@ -336,13 +384,18 @@ int main(void) {
     test_min_plays_bomb_is_one();
     test_min_plays_straight_is_one();
     test_min_plays_triple_with_kicker();
+    test_min_plays_complex_airplane();
+    test_min_plays_airplane_no_kickers();
+    test_min_plays_nested_straights();
     test_min_plays_scattered_worse_than_chain();
 
     test_bid_strength_rocket_highest();
     test_bid_strength_twos_valued();
+    test_bid_strength_vs_hand_score();
 
     test_play_position_fewer_plays_better();
     test_play_position_control_cards_boost();
+    test_play_position_extreme();
 
     test_min_plays_counts_matches_card_variant();
     test_play_position_counts_matches_card_variant();

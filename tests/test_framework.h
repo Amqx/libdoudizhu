@@ -22,12 +22,6 @@ static int g_failed = 0;
 #define EXPECT_EQ(a, b, msg) EXPECT((a) == (b), msg)
 #define EXPECT_NE(a, b, msg) EXPECT((a) != (b), msg)
 
-__attribute__ ((constructor))
-
-static void initial() {
-    printf("--- Test file: %s ---\n", __FILE__);
-}
-
 static void begin_suite(const char *name) {
     printf("| -> %s\n", name);
 }

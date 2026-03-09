@@ -71,7 +71,7 @@ static void test_deck_reset(void) {
     game_init(&g);
     game_reset_deck(&g);
     for (int i = 0; i < GAME_DECK_SIZE; i++)
-        EXPECT_EQ(g.deck[i], (Card)i, "deck card matches index");
+        EXPECT_EQ(g.deck[i], (Card) i, "deck card matches index");
 }
 
 static void test_deal_card_counts(void) {
@@ -231,7 +231,7 @@ static void test_has_cards(void) {
         memset(&m2, 0, sizeof(m2));
         m2.type = MOVE_SINGLE;
         m2.count = 1;
-        m2.cards[0] = (absent_rank < 13) ? (Card) (absent_rank * 4) : (Card) (52 + absent_rank - 13);
+        m2.cards[0] = (absent_rank < 13) ? (Card)(absent_rank * 4) : (Card)(52 + absent_rank - 13);
         EXPECT(!game_player_has_cards(&g, landlord, &m2), "landlord does not have absent rank");
     }
 }
@@ -300,7 +300,7 @@ static void test_play_cards_not_in_hand(void) {
         return;
     }
 
-    Card c = (absent < 13) ? (Card) (absent * 4) : (Card) (52 + absent - 13);
+    Card c = (absent < 13) ? (Card)(absent * 4) : (Card)(52 + absent - 13);
     Move m;
     memset(&m, 0, sizeof(m));
     m.type = MOVE_SINGLE;
@@ -492,7 +492,7 @@ static void test_bomb_doubles_score(void) {
     int p = g.current_player;
 
     // Overwrite first 4 cards of the current player with a bomb of 3s.
-    for (int i = 0; i < 4; i++) g.hands[p].cards[i] = (Card) (RANK_3 * 4 + i);
+    for (int i = 0; i < 4; i++) g.hands[p].cards[i] = (Card)(RANK_3 * 4 + i);
 
     Move bomb;
     memset(&bomb, 0, sizeof(bomb));
@@ -500,7 +500,7 @@ static void test_bomb_doubles_score(void) {
     bomb.rank = RANK_3;
     bomb.length = 1;
     bomb.count = 4;
-    for (int i = 0; i < 4; i++) bomb.cards[i] = (Card) (RANK_3 * 4 + i);
+    for (int i = 0; i < 4; i++) bomb.cards[i] = (Card)(RANK_3 * 4 + i);
 
     int ok = game_play(&g, p, &bomb);
     EXPECT_EQ(ok, 1, "bomb play accepted");
@@ -602,9 +602,142 @@ static void test_next_player(void) {
 // main
 // ---------------------------------------------------------------------------
 
+static void test_shuffle_reproducibility(void) {
+    begin_suite("shuffle: reproducibility");
+    GameState g1, g2;
+    game_init(&g1);
+    game_reset_deck(&g1);
+    game_shuffle(&g1, 123);
+    game_init(&g2);
+    game_reset_deck(&g2);
+    game_shuffle(&g2, 123);
+    for (int i = 0; i < GAME_DECK_SIZE; i++)
+        EXPECT_EQ(g1.deck[i], g2.deck[i], "same seed -> same shuffle");
+
+    game_shuffle(&g2, 456);
+    int different = 0;
+    for (int i = 0; i < GAME_DECK_SIZE; i++)
+        if (g1.deck[i] != g2.deck[i]) {
+            different = 1;
+            break;
+        }
+    EXPECT(different, "different seed -> different shuffle");
+}
+
+static void test_bidding_complex_sequence(void) {
+    begin_suite("bidding: complex sequence (1 -> 2 -> pass)");
+    GameState g = make_dealt_game();
+    game_start_bidding(&g, 0);
+    game_bid(&g, 0, 1);
+    game_bid(&g, 1, 2);
+    game_bid(&g, 2, 0); // pass
+    game_bid(&g, 0, 0); // pass
+
+    EXPECT_EQ(g.phase, PHASE_PLAYING, "bidding ends after two passes following a bid");
+    EXPECT_EQ(g.landlord, 1, "player 1 is landlord");
+    EXPECT_EQ(g.base_score, 2, "base score is 2");
+}
+
+static void test_play_rocket_beats_all(void) {
+    begin_suite("play: rocket beats bomb and normal moves");
+    GameState g = run_bidding(0, 1, 0, 0);
+    int p0 = g.current_player;
+    int p1 = game_next_player(&g, p0);
+
+    // Inject a bomb for p0.
+    for (int i = 0; i < 4; i++) g.hands[p0].cards[i] = (Card)(RANK_K * 4 + i);
+    Move bomb;
+    memset(&bomb, 0, sizeof(bomb));
+    bomb.type = MOVE_BOMB;
+    bomb.rank = RANK_K;
+    bomb.count = 4;
+    for (int i = 0; i < 4; i++) bomb.cards[i] = g.hands[p0].cards[i];
+    game_play(&g, p0, &bomb);
+
+    // Inject a rocket for p1.
+    g.hands[p1].cards[0] = 52; // small joker
+    g.hands[p1].cards[1] = 53; // big joker
+    Move rocket;
+    memset(&rocket, 0, sizeof(rocket));
+    rocket.type = MOVE_ROCKET;
+    rocket.count = 2;
+    rocket.cards[0] = 52;
+    rocket.cards[1] = 53;
+
+    int ok = game_play(&g, p1, &rocket);
+    EXPECT_EQ(ok, 1, "rocket beats bomb");
+    EXPECT_EQ(g.last_move.type, MOVE_ROCKET, "rocket is now on table");
+}
+
+static void test_score_with_multiple_bombs(void) {
+    begin_suite("score: multiple bombs");
+    GameState g = run_bidding(0, 1, 0, 0);
+    int p0 = g.current_player;
+
+    // Play two bombs.
+    for (int i = 0; i < 4; i++) g.hands[p0].cards[i] = (Card)(RANK_3 * 4 + i);
+    Move b3;
+    memset(&b3, 0, sizeof(b3));
+    b3.type = MOVE_BOMB;
+    b3.rank = RANK_3;
+    b3.count = 4;
+    for (int i = 0; i < 4; i++) b3.cards[i] = (Card)(RANK_3 * 4 + i);
+    game_play(&g, p0, &b3);
+
+    // Clear table with passes to play another bomb.
+    game_play(&g, game_next_player(&g, p0), &(Move) {
+        MOVE_PASS
+    }
+    )
+    ;
+    game_play(&g, game_next_player(&g, game_next_player(&g, p0)), &(Move) {
+        MOVE_PASS
+    }
+    )
+    ;
+
+    for (int i = 0; i < 4; i++) g.hands[p0].cards[i] = (Card)(RANK_4 * 4 + i);
+    Move b4;
+    memset(&b4, 0, sizeof(b4));
+    b4.type = MOVE_BOMB;
+    b4.rank = RANK_4;
+    b4.count = 4;
+    for (int i = 0; i < 4; i++) b4.cards[i] = (Card)(RANK_4 * 4 + i);
+    game_play(&g, p0, &b4);
+
+    EXPECT_EQ(g.bomb_count, 2, "two bombs recorded");
+}
+
+static void test_legal_moves_no_options(void) {
+    begin_suite("legal_moves: only pass available");
+    GameState g = run_bidding(0, 1, 0, 0);
+    int p0 = g.current_player;
+
+    // Landlord plays a rocket.
+    g.hands[p0].cards[0] = 52;
+    g.hands[p0].cards[1] = 53;
+    Move rkt;
+    memset(&rkt, 0, sizeof(rkt));
+    rkt.type = MOVE_ROCKET;
+    rkt.count = 2;
+    rkt.cards[0] = 52;
+    rkt.cards[1] = 53;
+    game_play(&g, p0, &rkt);
+
+    int p1 = g.current_player;
+    // p1 has no bombs/rockets, just low cards.
+    Move out[16];
+    int n = game_legal_moves(&g, p1, out, 16);
+    // game_legal_moves (moves_generate) does not return MOVE_PASS;
+    // it returns active moves that beat the table.
+    EXPECT_EQ(n, 0, "no active moves can beat a rocket");
+}
+
 int main(void) {
+    printf("--- Test file: %s ---\n", __FILE__);
     test_init();
     test_deck_reset();
+    test_shuffle_reproducibility();
     test_deal_card_counts();
     test_deal_no_duplicates();
     test_deal_all_cards_accounted();
@@ -614,6 +747,7 @@ int main(void) {
     test_bidding_nobody_bids();
     test_bidding_bid_3_ends_immediately();
     test_bidding_invalid_moves();
+    test_bidding_complex_sequence();
     test_bidding_first_player_leads();
 
     test_has_cards();
@@ -625,15 +759,18 @@ int main(void) {
     test_play_advances_turn();
     test_play_must_beat_table();
     test_play_pass();
+    test_play_rocket_beats_all();
     test_play_cannot_pass_on_empty_table();
     test_play_table_clears_after_two_passes();
     test_play_history_recorded();
 
     test_bomb_doubles_score();
+    test_score_with_multiple_bombs();
     test_game_over_when_hand_empty();
 
     test_legal_moves_on_empty_table();
     test_legal_moves_after_single_played();
+    test_legal_moves_no_options();
 
     test_is_peasant();
     test_next_player();

@@ -451,6 +451,34 @@ static void test_generate_empty_hand(void) {
     EXPECT_EQ(n, 0, "no moves from empty hand");
 }
 
+static void test_generate_round_trips_through_classify(void) {
+    begin_suite("generate: round-trip classify");
+
+    Card hand[] = {
+        card(RANK_3, 0), card(RANK_3, 1),
+        card(RANK_4, 0), card(RANK_4, 1),
+        card(RANK_5, 0), card(RANK_5, 1), card(RANK_5, 2),
+        card(RANK_6, 0), card(RANK_6, 1), card(RANK_6, 2),
+        card(RANK_7, 0), card(RANK_7, 1), card(RANK_7, 2), card(RANK_7, 3),
+        card(RANK_8, 0),
+        card(RANK_9, 0),
+        card(RANK_Q, 0), card(RANK_Q, 1),
+        card(RANK_SMALL_JOKER, 0), card(RANK_BIG_JOKER, 0),
+    };
+    Move prev = make_pass();
+    Move out[512];
+    int n = moves_generate(hand, (int) (sizeof(hand) / sizeof(hand[0])), &prev, out, 512);
+
+    EXPECT(n > 0, "generated at least one move");
+    for (int i = 0; i < n; i++) {
+        Move classified = moves_classify(out[i].cards, out[i].count);
+        EXPECT_EQ(classified.type, out[i].type, "generated move type re-classifies identically");
+        EXPECT_EQ(classified.count, out[i].count, "generated move count re-classifies identically");
+        EXPECT_EQ(classified.rank, out[i].rank, "generated move rank re-classifies identically");
+        EXPECT_EQ(classified.length, out[i].length, "generated move length re-classifies identically");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests: moves_count_ranks
 // ---------------------------------------------------------------------------
@@ -482,11 +510,95 @@ static void test_type_names(void) {
     EXPECT(moves_type_name(MOVE_INVALID) != NULL, "INVALID has name");
 }
 
+static void test_classify_long_straight(void) {
+    begin_suite("classify: long straight");
+    // 3-4-5-6-7-8-9-10-J-Q-K-A (12 cards)
+    Card cs[12];
+    for (int i = 0; i < 12; i++) cs[i] = card(RANK_3 + i, 0);
+    Move m = moves_classify(cs, 12);
+    EXPECT_EQ(m.type, MOVE_STRAIGHT, "type == MOVE_STRAIGHT");
+    EXPECT_EQ(m.length, 12, "length == 12");
+}
+
+static void test_classify_airplane_complex(void) {
+    begin_suite("classify: complex airplane");
+    // 333 444 555 + 7 + 8 + 9 (3 sets + 3 kickers)
+    Card cs[12];
+    fill_rank(cs, RANK_3, 3);
+    fill_rank(cs + 3, RANK_4, 3);
+    fill_rank(cs + 6, RANK_5, 3);
+    cs[9] = card(RANK_7, 0);
+    cs[10] = card(RANK_8, 0);
+    cs[11] = card(RANK_9, 0);
+    Move m = moves_classify(cs, 12);
+    EXPECT_EQ(m.type, MOVE_TRIPLE_STRAIGHT_SINGLES, "type");
+    EXPECT_EQ(m.length, 3, "length == 3");
+    EXPECT_EQ(m.rank, RANK_3, "rank == RANK_3");
+}
+
+static void test_classify_four_two_mixed(void) {
+    begin_suite("classify: four-two mixed kickers");
+    // Four 10s + J + Q (should be MOVE_FOUR_TWO_SINGLES)
+    Card cs[6];
+    fill_rank(cs, RANK_10, 4);
+    cs[4] = card(RANK_J, 0);
+    cs[5] = card(RANK_Q, 0);
+    Move m = moves_classify(cs, 6);
+    EXPECT_EQ(m.type, MOVE_FOUR_TWO_SINGLES, "type");
+
+    // Four 10s + JJ + QQ (should be MOVE_FOUR_TWO_PAIRS)
+    Card cs2[8];
+    fill_rank(cs2, RANK_10, 4);
+    fill_rank(cs2 + 4, RANK_J, 2);
+    fill_rank(cs2 + 6, RANK_Q, 2);
+    Move m2 = moves_classify(cs2, 8);
+    EXPECT_EQ(m2.type, MOVE_FOUR_TWO_PAIRS, "type");
+}
+
+static void test_classify_counts_direct(void) {
+    begin_suite("moves_classify_counts");
+    int cnt[RANK_COUNT_SIZE] = {0};
+    cnt[RANK_5] = 3;
+    cnt[RANK_3] = 1;
+    Move m = moves_classify_counts(cnt, 4);
+    EXPECT_EQ(m.type, MOVE_TRIPLE_SINGLE, "3 of 5s + 1 of 3s");
+    EXPECT_EQ(m.rank, RANK_5, "rank is 5");
+}
+
+static void test_sort_cards(void) {
+    begin_suite("moves_sort");
+    Move m;
+    memset(&m, 0, sizeof(m));
+    m.count = 5;
+    m.cards[0] = card(RANK_A, 0);
+    m.cards[1] = card(RANK_3, 1);
+    m.cards[2] = card(RANK_J, 2);
+    m.cards[3] = card(RANK_2, 3);
+    m.cards[4] = card(RANK_5, 0);
+
+    moves_sort(&m);
+
+    EXPECT_EQ(CARD_RANK(m.cards[0]), RANK_3, "index 0 is RANK_3");
+    EXPECT_EQ(CARD_RANK(m.cards[1]), RANK_5, "index 1 is RANK_5");
+    EXPECT_EQ(CARD_RANK(m.cards[2]), RANK_J, "index 2 is RANK_J");
+    EXPECT_EQ(CARD_RANK(m.cards[3]), RANK_A, "index 3 is RANK_A");
+    EXPECT_EQ(CARD_RANK(m.cards[4]), RANK_2, "index 4 is RANK_2");
+}
+
+static void test_beats_bomb_vs_bomb(void) {
+    begin_suite("beats: bomb vs bomb");
+    Move b3 = make_bomb(RANK_3);
+    Move b4 = make_bomb(RANK_4);
+    EXPECT_EQ(moves_beats(&b4, &b3), 1, "bomb 4 beats bomb 3");
+    EXPECT_EQ(moves_beats(&b3, &b4), 0, "bomb 3 does not beat bomb 4");
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
 int main(void) {
+    printf("--- Test file: %s ---\n", __FILE__);
     // classify
     test_classify_single();
     test_classify_pair();
@@ -496,17 +608,22 @@ int main(void) {
     test_classify_bomb();
     test_classify_rocket();
     test_classify_straight();
+    test_classify_long_straight();
     test_classify_pair_straight();
     test_classify_triple_straight();
     test_classify_airplane_singles();
     test_classify_airplane_pairs();
+    test_classify_airplane_complex();
     test_classify_four_two_singles();
     test_classify_four_two_pairs();
+    test_classify_four_two_mixed();
     test_classify_invalid();
+    test_classify_counts_direct();
 
     // beats
     test_beats_basics();
     test_beats_straight();
+    test_beats_bomb_vs_bomb();
 
     // generate
     test_generate_pass();
@@ -514,10 +631,12 @@ int main(void) {
     test_generate_beat_straight();
     test_generate_bomb_always_available();
     test_generate_empty_hand();
+    test_generate_round_trips_through_classify();
 
     // utilities
     test_count_ranks();
     test_type_names();
+    test_sort_cards();
 
     PRINT_RESULTS();
     RETURN_TEST_RESULT();

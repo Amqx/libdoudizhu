@@ -20,6 +20,10 @@ static Card mk(int rank, int suit) {
     return (Card) (rank * 4 + suit);
 }
 
+static void fill_rank(Card *buf, int rank, int n) {
+    for (int i = 0; i < n; i++) buf[i] = mk(rank, i);
+}
+
 /* Build a dealt game ready for bidding. */
 static GameState make_dealt(unsigned int seed) {
     GameState g;
@@ -455,7 +459,98 @@ static void test_does_not_break_straight_when_leading(void) {
  * main
  * --------------------------------------------------------------------------- */
 
+static void test_bot_must_stop_landlord(void) {
+    begin_suite("bot: peasant must stop landlord (1 card left)");
+
+    GameState g = make_playing_game(42);
+    const int landlord = g.landlord;
+    const int peasant = (landlord + 1) % 3; // gatekeeper
+
+    // Landlord has 1 card left.
+    g.hands[landlord].count = 1;
+    // Landlord leads with a 7.
+    g.current_player = peasant;
+    g.last_player = landlord;
+    g.last_move.type = MOVE_SINGLE;
+    g.last_move.rank = RANK_7;
+    g.last_move.count = 1;
+    g.last_move.length = 1;
+
+    // Peasant has 9 and Ace. Normally would play 9 (cheapest).
+    // But in must-stop, should play Ace (strongest).
+    g.hands[peasant].cards[0] = mk(RANK_9, 0);
+    g.hands[peasant].cards[1] = mk(RANK_A, 0);
+    g.hands[peasant].count = 2;
+
+    const Move m = bot_play(&g, peasant);
+    EXPECT_EQ(m.rank, RANK_A, "peasant plays strongest card (Ace) to stop landlord");
+}
+
+static void test_bot_gatekeeper_aggression(void) {
+    begin_suite("bot: gatekeeper aggressive against landlord");
+
+    GameState g = make_playing_game(42);
+    const int landlord = g.landlord;
+    const int gatekeeper = (landlord + 1) % 3;
+
+    // Landlord leads with 3.
+    g.current_player = gatekeeper;
+    g.last_player = landlord;
+    g.last_move.type = MOVE_SINGLE;
+    g.last_move.rank = RANK_3;
+    g.last_move.count = 1;
+    g.last_move.length = 1;
+
+    // Gatekeeper has 10 and King.
+    g.hands[gatekeeper].cards[0] = mk(RANK_10, 0);
+    g.hands[gatekeeper].cards[1] = mk(RANK_K, 0);
+    g.hands[gatekeeper].count = 2;
+
+    const Move m = bot_play(&g, gatekeeper);
+    // Gatekeeper should prefer to play something to stop landlord.
+    EXPECT(m.type != MOVE_PASS, "gatekeeper does not pass on landlord lead");
+}
+
+static void test_bot_finishing_move(void) {
+    begin_suite("bot: always takes finishing move");
+
+    GameState g = make_playing_game(42);
+    const int p = g.current_player;
+
+    // Hand: 3-4-5-6-7 straight.
+    for (int i = 0; i < 5; i++) g.hands[p].cards[i] = mk(RANK_3 + i, 0);
+    g.hands[p].count = 5;
+
+    const Move m = bot_play(&g, p);
+    EXPECT_EQ(m.type, MOVE_STRAIGHT, "bot plays finishing straight");
+    EXPECT_EQ(m.count, 5, "bot empties hand");
+}
+
+static void test_bot_avoids_breaking_bomb_as_kicker(void) {
+    begin_suite("bot: avoids using bomb rank as kicker");
+
+    GameState g = make_playing_game(42);
+    const int p = g.current_player;
+
+    // Hand: 888 (triple) + 3333 (bomb) + 5 (single).
+    // When playing triple 8s, should use 5 as kicker, NOT one of the 3s.
+    fill_rank(g.hands[p].cards, RANK_8, 3);
+    fill_rank(g.hands[p].cards + 3, RANK_3, 4);
+    g.hands[p].cards[7] = mk(RANK_5, 0);
+    g.hands[p].count = 8;
+
+    const Move m = bot_play(&g, p);
+    if (m.type == MOVE_TRIPLE_SINGLE && m.rank == RANK_8) {
+        int mc[RANK_COUNT_SIZE];
+        moves_count_ranks(m.cards, m.count, mc);
+        // The kicker is the rank that has count 1.
+        EXPECT_EQ(mc[RANK_5], 1, "uses 5 as kicker");
+        EXPECT_EQ(mc[RANK_3], 0, "does not use a 3 from the bomb as kicker");
+    }
+}
+
 int main(void) {
+    printf("--- Test file: %s ---\n", __FILE__);
     /* Bidding */
     test_bid_strong_hand();
     test_bid_weak_hand_passes();
@@ -467,10 +562,13 @@ int main(void) {
     /* Combination preservation */
     test_does_not_break_bomb_when_leading();
     test_does_not_open_with_bomb();
+    test_bot_avoids_breaking_bomb_as_kicker();
 
     /* Peasant cooperation */
     test_peasant_passes_for_partner();
     test_peasant_overrides_cooperation_in_danger();
+    test_bot_must_stop_landlord();
+    test_bot_gatekeeper_aggression();
 
     /* Bomb usage */
     test_bombs_when_enemy_close_to_winning();
@@ -483,6 +581,9 @@ int main(void) {
 
     /* Shape preservation */
     test_does_not_break_straight_when_leading();
+
+    /* Finishing */
+    test_bot_finishing_move();
 
     PRINT_RESULTS();
     RETURN_TEST_RESULT();
