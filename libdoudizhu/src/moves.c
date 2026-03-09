@@ -222,8 +222,13 @@ static int find_triple_run(const int cnt[RANK_COUNT_SIZE], int *out_start, int *
 
 static int try_triple_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 6 || total % 3 != 0) return 0;
+    int triple_cnt[RANK_COUNT_SIZE] = {0};
+    for (int r = 0; r < RANK_COUNT_SIZE; r++) {
+        if (cnt[r] % 3 != 0) return 0;
+        triple_cnt[r] = cnt[r] / 3;
+    }
     int start, len;
-    if (!find_triple_run(cnt, &start, &len)) return 0;
+    if (!find_triple_run(triple_cnt, &start, &len)) return 0;
     if (len * 3 != total) return 0;
     m->type = MOVE_TRIPLE_STRAIGHT;
     m->rank = start;
@@ -521,10 +526,11 @@ static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move
         const int start_max = RANK_MAX_STRAIGHT - len + 1;
         for (int s = start_min; s <= start_max; s++) {
             int ok = 1;
-            for (int r = s; r < s + len; r++) if (cnt[r] < 1) {
-                ok = 0;
-                break;
-            }
+            for (int r = s; r < s + len; r++)
+                if (cnt[r] < 1) {
+                    ok = 0;
+                    break;
+                }
             if (!ok) continue;
             Move m = {MOVE_STRAIGHT, {0}, len, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
@@ -545,10 +551,11 @@ static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev,
         const int start_max = RANK_MAX_STRAIGHT - len + 1;
         for (int s = start_min; s <= start_max; s++) {
             int ok = 1;
-            for (int r = s; r < s + len; r++) if (cnt[r] < 2) {
-                ok = 0;
-                break;
-            }
+            for (int r = s; r < s + len; r++)
+                if (cnt[r] < 2) {
+                    ok = 0;
+                    break;
+                }
             if (!ok) continue;
             Move m = {MOVE_PAIR_STRAIGHT, {0}, len * 2, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
@@ -570,10 +577,11 @@ static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *pre
         const int start_max = RANK_MAX_STRAIGHT - len + 1;
         for (int s = start_min; s <= start_max; s++) {
             int ok = 1;
-            for (int r = s; r < s + len; r++) if (cnt[r] < 3) {
-                ok = 0;
-                break;
-            }
+            for (int r = s; r < s + len; r++)
+                if (cnt[r] < 3) {
+                    ok = 0;
+                    break;
+                }
             if (!ok) continue;
             Move m = {MOVE_TRIPLE_STRAIGHT, {0}, len * 3, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
@@ -587,7 +595,7 @@ static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *pre
 
 static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, const MoveType type,
                               const int kicker_need, Move *out, const int max_out, int *n) {
-    const int req_len = (prev->type == type) ? prev->length : 1;
+    const int req_len = (prev->type == type) ? prev->length : 2;
     const int min_rank = (prev->type == type) ? prev->rank : 0;
     const int max_len = RANK_MAX_STRAIGHT;
     for (int len = req_len; len <= max_len; len++) {
@@ -595,14 +603,15 @@ static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, 
         const int start_max = RANK_MAX_STRAIGHT - len + 1;
         for (int s = start_min; s <= start_max; s++) {
             int ok = 1;
-            for (int r = s; r < s + len; r++) if (cnt[r] < 3) {
-                ok = 0;
-                break;
-            }
+            for (int r = s; r < s + len; r++)
+                if (cnt[r] < 3) {
+                    ok = 0;
+                    break;
+                }
             if (!ok) continue;
             int rem[RANK_COUNT_SIZE];
             memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
-            for (int r = s; r < s + len; r++) rem[r] -= 3;
+            for (int r = s; r < s + len; r++) rem[r] = 0;
             KickerCtx ctx = {s, len, kicker_need, type, out, max_out, n, cnt};
             int chosen[20];
             choose_kickers(rem, kicker_need, len, chosen, 0, 0, on_kickers_chosen, &ctx);
@@ -644,6 +653,7 @@ static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *p
         memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
+            if (k == r) continue;
             if (rem[k] < 1) continue;
             Move m = {MOVE_TRIPLE_SINGLE, {0}, 4, r, 1};
             int tmp[RANK_COUNT_SIZE] = {0};
@@ -665,6 +675,7 @@ static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *pre
         memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
+            if (k == r) continue;
             if (rem[k] < 2) continue;
             Move m = {MOVE_TRIPLE_PAIR, {0}, 5, r, 1};
             int tmp[RANK_COUNT_SIZE] = {0};
