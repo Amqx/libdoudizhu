@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 4.1)
 project(libdoudizhu C)
 
 set(CMAKE_C_STANDARD 11)
@@ -6,14 +6,21 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_library(project_warnings INTERFACE)
+if (MSVC)
+    target_compile_options(project_warnings INTERFACE /W4 /permissive-)
+else ()
+    target_compile_options(project_warnings INTERFACE -Wall -Wextra -Wpedantic)
+endif ()
+
 file(GLOB SOURCES CONFIGURE_DEPENDS libdoudizhu/src/*.c)
 add_library(doudizhu STATIC ${SOURCES})
 target_include_directories(doudizhu PUBLIC libdoudizhu/include)
-target_compile_options(doudizhu PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(doudizhu PRIVATE project_warnings)
 
 add_executable(game main/main.c)
 target_link_libraries(game PRIVATE doudizhu)
-target_compile_options(game PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(game PRIVATE project_warnings)
 
 enable_testing()
 add_executable(test_moves tests/test_moves.c)
