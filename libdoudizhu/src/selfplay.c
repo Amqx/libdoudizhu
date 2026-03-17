@@ -41,7 +41,7 @@ static void clamp_weights(BotWeights *weights) {
 
 void selfplay_stats_reset(SelfPlayStats *stats, const int requested_games) {
     if (!stats) return;
-    memset(stats, 0, sizeof(*stats));
+    lddz_memset(stats, 0, sizeof(*stats));
     stats->requested_games = requested_games;
 }
 

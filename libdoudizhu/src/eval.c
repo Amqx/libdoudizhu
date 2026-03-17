@@ -209,7 +209,7 @@ int eval_min_plays(const Card cards[], const int n) {
 int eval_min_plays_counts(const int cnt[RANK_COUNT_SIZE], const int n) {
     (void) n;
     int tmp[RANK_COUNT_SIZE];
-    memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     return min_plays_inner(tmp);
 }
 

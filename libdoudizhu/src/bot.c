@@ -114,7 +114,7 @@ typedef struct {
  * @brief Accumulates rank counts over all cards played in the history log.
  */
 static void count_played_ranks(const GameState *g, int played[RANK_COUNT_SIZE]) {
-    memset(played, 0, RANK_COUNT_SIZE * sizeof(int));
+    lddz_memset(played, 0, RANK_COUNT_SIZE * sizeof(int));
     for (int i = 0; i < g->history_count; i++) {
         const PlayRecord *rec = &g->history[i];
         if (rec->move.type == MOVE_PASS) continue;
@@ -141,8 +141,8 @@ static void analyze_history(const GameState *g, const int partner,
                             int *landlord_pass_type) {
     int pass_cnt[GAME_NUM_PLAYERS][BROAD_COUNT];
     int lead_cnt[GAME_NUM_PLAYERS][BROAD_COUNT];
-    memset(pass_cnt, 0, sizeof(pass_cnt));
-    memset(lead_cnt, 0, sizeof(lead_cnt));
+    lddz_memset(pass_cnt, 0, sizeof(pass_cnt));
+    lddz_memset(lead_cnt, 0, sizeof(lead_cnt));
 
     MoveType table_type = MOVE_PASS;
     int table_owner = PLAYER_NONE;

@@ -26,7 +26,7 @@ static int cmp_card_rank(const void *a, const void *b) {
 }
 
 void moves_count_ranks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
-    memset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
+    lddz_memset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
     for (int i = 0; i < n; i++) {
         cnt[CARD_RANK(cards[i])]++;
     }
@@ -47,7 +47,7 @@ static void fill_cards_from_counts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE
         // Standard ranks (3 to 2) have 4 cards each
         if (r < 13) {
             for (int suit = 0; suit < 4 && needed > 0; suit++) {
-                dst[idx++] = (Card) (r * 4 + suit);
+                dst[idx++] = (Card)(r * 4 + suit);
                 needed--;
             }
         } else if (r == RANK_SMALL_JOKER) {
@@ -334,7 +334,7 @@ static int try_triple_straight_singles(const int cnt[RANK_COUNT_SIZE], const int
     if (total < 8 || total % 4 != 0) return 0;
     const int n = total / 4;
     int tmp[RANK_COUNT_SIZE];
-    memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     int triple_cnt[RANK_COUNT_SIZE] = {0};
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         triple_cnt[r] = tmp[r] / 3;
@@ -365,7 +365,7 @@ static int try_triple_straight_pairs(const int cnt[RANK_COUNT_SIZE], const int t
     if (total < 10 || total % 5 != 0) return 0;
     const int n = total / 5;
     int tmp[RANK_COUNT_SIZE];
-    memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     int triple_cnt[RANK_COUNT_SIZE] = {0};
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         triple_cnt[r] = tmp[r] / 3;
@@ -480,7 +480,7 @@ Move moves_classify(const Card cards[], const int n) {
     moves_count_ranks(cards, n, cnt);
     Move m = moves_classify_counts(cnt, n);
     if (n <= MOVE_MAX_CARDS) {
-        memcpy(m.cards, cards, n * sizeof(Card));
+        lddz_memcpy(m.cards, cards, n * sizeof(Card));
     }
     m.count = n;
     return m;
@@ -816,7 +816,7 @@ static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, 
                 }
             if (!ok) continue;
             int rem[RANK_COUNT_SIZE];
-            memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+            lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
             for (int r = s; r < s + len; r++) rem[r] = 0;
             KickerCtx ctx = {s, len, kicker_need, type, out, max_out, n, cnt};
             int chosen[20];
@@ -841,7 +841,7 @@ static void gen_four_two(const int cnt[RANK_COUNT_SIZE], const Move *prev, const
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 4) continue;
         int rem[RANK_COUNT_SIZE];
-        memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 4;
         for (int a = 0; a < RANK_COUNT_SIZE; a++) {
             if (rem[a] < kicker_need) continue;
@@ -874,7 +874,7 @@ static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *p
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 3) continue;
         int rem[RANK_COUNT_SIZE];
-        memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
             if (k == r) continue;
@@ -904,7 +904,7 @@ static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *pre
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 3) continue;
         int rem[RANK_COUNT_SIZE];
-        memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
             if (k == r) continue;

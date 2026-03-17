@@ -7,7 +7,7 @@
 
 #include "utils.h"
 
-void *memset(void *ptr, const int value, const size_t num) {
+void *lddz_memset(void *ptr, const int value, const size_t num) {
     unsigned char *p = ptr;
     const unsigned char byte = (unsigned char) value;
 
@@ -18,7 +18,7 @@ void *memset(void *ptr, const int value, const size_t num) {
     return ptr;
 }
 
-void *memcpy(void *dest, const void *src, const size_t n) {
+void *lddz_memcpy(void *dest, const void *src, const size_t n) {
     unsigned char *d = dest;
     const unsigned char *s = src;
 

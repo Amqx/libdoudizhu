@@ -4,7 +4,6 @@
 
 #include "game.h"
 #include "test_framework.h"
-
 #include <string.h>
 
 // ---------------------------------------------------------------------------

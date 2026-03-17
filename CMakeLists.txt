@@ -22,13 +22,6 @@ set(DOUDIZHU_SOURCES
         libdoudizhu/src/moves.c
         libdoudizhu/src/utils.c)
 
-# Prevent the compiler from replacing the byte loops in utils.c with calls to
-# memset/memcpy, which would cause infinite recursion in release builds.
-if (NOT MSVC)
-    set_source_files_properties(libdoudizhu/src/utils.c PROPERTIES
-            COMPILE_FLAGS "-fno-tree-loop-distribute-patterns")
-endif ()
-
 if (DOUDIZHU_TUNING)
     list(APPEND DOUDIZHU_SOURCES
             libdoudizhu/src/tune.c

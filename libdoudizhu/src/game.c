@@ -10,7 +10,7 @@
 #include <stdlib.h>     // Necessary for rand()
 
 void game_init(GameState *g) {
-    memset(g, 0, sizeof(GameState));
+    lddz_memset(g, 0, sizeof(GameState));
     g->landlord = PLAYER_NONE;
     g->bid.current_bidder = PLAYER_NONE;
     g->bid.highest_bidder = PLAYER_NONE;

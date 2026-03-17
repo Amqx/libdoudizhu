@@ -17,7 +17,7 @@
  * @param num Number of bytes to change
  * @return ptr
  */
-void *memset(void *ptr, int value, size_t num);
+void *lddz_memset(void *ptr, int value, size_t num);
 
 /**
  * Copies raw bytes from one location to another.
@@ -26,6 +26,6 @@ void *memset(void *ptr, int value, size_t num);
  * @param n Number of bytes to copy
  * @return dest
  */
-void *memcpy(void *dest, const void *src, size_t n);
+void *lddz_memcpy(void *dest, const void *src, size_t n);
 
 #endif //LIBDOUDIZHU_UTILS_H
