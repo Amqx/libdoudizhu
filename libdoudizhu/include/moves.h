@@ -8,37 +8,44 @@
 #ifndef LIBDOUDIZHU_MOVES_H
 #define LIBDOUDIZHU_MOVES_H
 
-#include <stdint.h>
+#include <stdint.h>     // Required for uint8_t
 
 /** * @defgroup CardReps Card Representations
  * @brief Definitions for card values, ranks, and suits.
- * * A Card is a uint8_t. The deck has 54 cards (52 standard + 2 jokers).
+ * * A Card is an uint8_t. The deck has 54 cards (52 standard + 2 jokers).
  * For standard cards: value = rank * 4 + suit.
  * @{
  */
 
-/** @brief Extracts the rank (0-14) from a card. */
-#define CARD_RANK(c)       ((c) < 52 ? (c) / 4 : 13 + ((c) - 52))
-/** @brief Extracts the suit (0-3) from a card; only meaningful for c < 52. */
-#define CARD_SUIT(c)       ((c) % 4)
+/**
+ * @brief Extracts the rank (0-14) from a card.
+ */
+#define CARD_RANK(c) ((c) < 52 ? (c) / 4 : 13 + ((c) - 52))
 
-#define RANK_3   0   /**< Lowest standard rank */
-#define RANK_4   1
-#define RANK_5   2
-#define RANK_6   3
-#define RANK_7   4
-#define RANK_8   5
-#define RANK_9   6
-#define RANK_10  7
-#define RANK_J   8
-#define RANK_Q   9
-#define RANK_K   10
-#define RANK_A   11
-#define RANK_2   12  /**< Highest standard rank */
+/** @brief
+ * Extracts the suit (0-3) from a card; only meaningful for c < 52.
+ */
+#define CARD_SUIT(c) ((c) % 4)
+
+#define RANK_3 0   // Lowest standard rank
+#define RANK_4 1
+#define RANK_5 2
+#define RANK_6 3
+#define RANK_7 4
+#define RANK_8 5
+#define RANK_9 6
+#define RANK_10 7
+#define RANK_J 8
+#define RANK_Q 9
+#define RANK_K 10
+#define RANK_A 11
+#define RANK_2 12  // Highest standard rank
 #define RANK_SMALL_JOKER 13
 #define RANK_BIG_JOKER   14
 
-/** @brief Maximum rank allowed in a straight (2s and Jokers excluded). */
+/**
+ * @brief Maximum rank allowed in a straight (2s and jokers are disallowed).
+ */
 #define RANK_MAX_STRAIGHT RANK_A
 
 /** @brief Type definition for a single card. */
@@ -47,39 +54,39 @@ typedef uint8_t Card;
 
 /**
  * @enum MoveType
- * @brief Classification of Dou Dizhu hands.
+ * @brief Classification of doudizhu hands.
  */
 typedef enum {
-    MOVE_PASS = 0, /**< Player passes (no cards played) */
-    MOVE_SINGLE, /**< Single card */
-    MOVE_PAIR, /**< Two cards of the same rank */
-    MOVE_TRIPLE, /**< Three cards of the same rank */
-    MOVE_TRIPLE_SINGLE, /**< Three-of-a-kind + one kicker */
-    MOVE_TRIPLE_PAIR, /**< Three-of-a-kind + one pair kicker */
-    MOVE_STRAIGHT, /**< 5+ consecutive singles (no 2 or joker) */
-    MOVE_PAIR_STRAIGHT, /**< 3+ consecutive pairs */
-    MOVE_TRIPLE_STRAIGHT, /**< 2+ consecutive triples (Planes) */
-    MOVE_TRIPLE_STRAIGHT_SINGLES, /**< Triple Straight + N singles */
-    MOVE_TRIPLE_STRAIGHT_PAIRS, /**< Triple Straight + N pairs */
-    MOVE_FOUR_TWO_SINGLES, /**< Four-of-a-kind + 2 single kickers */
-    MOVE_FOUR_TWO_PAIRS, /**< Four-of-a-kind + 2 pair kickers */
-    MOVE_BOMB, /**< Four cards of the same rank */
-    MOVE_ROCKET, /**< Joker bomb (Big + Small Jokers) */
-    MOVE_INVALID, /**< Not a legal combination */
+    MOVE_PASS = 0, // Player passes (no hand played)
+    MOVE_SINGLE, // Single card
+    MOVE_PAIR, // Two cards of the same rank
+    MOVE_TRIPLE, // Three cards of the same rank
+    MOVE_TRIPLE_SINGLE, // Three of a kind + a single kicker
+    MOVE_TRIPLE_PAIR, // Three of a kind + a pair of kickers
+    MOVE_STRAIGHT, // 5+ consecutive singles
+    MOVE_PAIR_STRAIGHT, // 3+ consecutive pairs
+    MOVE_TRIPLE_STRAIGHT, // 2+ consecutive triples (plane)
+    MOVE_TRIPLE_STRAIGHT_SINGLES, // N consecutive triples + N singles (N >= 2)
+    MOVE_TRIPLE_STRAIGHT_PAIRS, // N consecutive triples + N pairs (N >= 2)
+    MOVE_FOUR_TWO_SINGLES, // Four of a kind + 2 single kickers
+    MOVE_FOUR_TWO_PAIRS, // Four of a kind + 2 pairs
+    MOVE_BOMB, // Four cards of the same rank (four of a kind)
+    MOVE_ROCKET, // Rocket (big joker + small joker)
+    MOVE_INVALID, // Invalid combination of cards
 } MoveType;
 
 /**
  * @struct Move
  * @brief Represents a fully classified move played on the table.
  */
-#define MOVE_MAX_CARDS 20
+#define MOVE_MAX_CARDS 20   // There are at most 20 cards in a hand, so 20 is the max a player can play in one hand.
 
 typedef struct {
-    MoveType type; /**< The category of the move */
-    Card cards[MOVE_MAX_CARDS]; /**< Array of cards in the move */
-    int count; /**< Total number of cards played */
-    int rank; /**< Primary rank for comparison (e.g., the triple in a plane) */
-    int length; /**< Length of chain moves (e.g., number of sets in a straight) */
+    MoveType type; // Category of the move.
+    Card cards[MOVE_MAX_CARDS]; // Array of cards in the move.
+    int count; // Total number of cards played.
+    int rank; // Primary rank for comparison (ex. the rank of the triple in a plane)
+    int length; // Length of a chain move (ex. length of straight)
 } Move;
 
 /** @brief Size of the rank-count array (0-14). */
@@ -91,7 +98,7 @@ typedef struct {
  * @param n Number of cards.
  * @param cnt Array of size RANK_COUNT_SIZE to be populated.
  */
-void moves_count_ranks(const Card *cards, int n, int cnt[RANK_COUNT_SIZE]);
+void moves_count_ranks(const Card cards[], int n, int cnt[RANK_COUNT_SIZE]);
 
 /**
  * @brief Classifies an arbitrary set of cards into a Move structure.
@@ -99,7 +106,7 @@ void moves_count_ranks(const Card *cards, int n, int cnt[RANK_COUNT_SIZE]);
  * @param n Number of cards.
  * @return A Move structure; type is MOVE_INVALID if the combination is illegal.
  */
-Move moves_classify(const Card *cards, int n);
+Move moves_classify(const Card cards[], int n);
 
 /**
  * @brief Classifies cards based on a pre-computed rank-count array.
@@ -126,9 +133,9 @@ int moves_beats(const Move *play, const Move *prev);
  * @param max_out Maximum number of moves to write to the `out` array.
  * @return The total number of legal moves found.
  */
-int moves_generate(const Card *hand, int hand_size,
+int moves_generate(const Card hand[], int hand_size,
                    const Move *prev,
-                   Move *out, int max_out);
+                   Move out[], int max_out);
 
 /**
  * @brief Returns a human-readable string for a MoveType.

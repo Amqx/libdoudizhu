@@ -16,7 +16,7 @@ static void print_weights(const BotWeights *weights) {
     }
 }
 
-int main(int argc, char **argv) {
+int main(const int argc, char **argv) {
     SelfPlayTuneConfig cfg = {
         .generations = 1024,
         .games_per_generation = 256,

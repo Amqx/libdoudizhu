@@ -14,11 +14,11 @@
  * @defgroup GameConstants Game Constants
  * @{
  */
-#define GAME_NUM_PLAYERS    3   /**< Standard doudizhu is played by 3 players */
-#define GAME_DECK_SIZE      54  /**< 52 cards + 2 jokers */
-#define GAME_KITTY_SIZE     3   /**< Cards reserved for the landlord */
-#define GAME_HAND_SIZE      17  /**< Initial hand size for peasants (54-3)/3 */
-#define GAME_MAX_HAND_SIZE  20  /**< Landlord's final hand size (17+3) */
+#define GAME_NUM_PLAYERS    3   // Standard games have 3 players
+#define GAME_DECK_SIZE      54  // 52 cards + 2 jokers
+#define GAME_KITTY_SIZE     3   // Kitty reserves 3 cards for the landlord
+#define GAME_HAND_SIZE      17  // (54 - 3)/3 = 17 cards for all players initially
+#define GAME_MAX_HAND_SIZE  20  // Landlord's final hand size
 
 #define PLAYER_0            0
 #define PLAYER_1            1
@@ -31,30 +31,30 @@
  * @brief The different stages of a single round.
  */
 typedef enum {
-    PHASE_BIDDING, /**< Players are bidding to become landlord */
-    PHASE_PLAYING, /**< Landlord vs peasants; active card play */
-    PHASE_OVER, /**< Round is finished; winner determined */
+    PHASE_BIDDING, // Players are bidding to become the landlord
+    PHASE_PLAYING, // Active card playing phase
+    PHASE_OVER, // Round is finished and the winner has been determined
 } GamePhase;
 
 /**
  * @struct BidState
- * @brief tracks the "Call Score" phase to determine the landlord.
+ * @brief Tracks the bidding phase to determine the landlord.
  */
 typedef struct {
-    int scores[GAME_NUM_PLAYERS]; /**< Bid value per player (0=pass, 1-3=multiplier) */
-    int current_bidder; /**< Index of the player whose turn it is to bid */
-    int highest_bidder; /**< Player index of the current leader (-1 if none) */
-    int highest_score; /**< Current highest bid value (0-3) */
-    int num_passed; /**< Counter for consecutive passes */
+    int scores[GAME_NUM_PLAYERS]; // Bids from players (0 = pass, 1-3 = multipliers)
+    int current_bidder; // Currently bidding player
+    int highest_bidder; // Currently leading bidder
+    int highest_score; // Currently leading bid
+    int num_passed; // Number of consecutive passes
 } BidState;
 
 /**
  * @struct Hand
- * @brief Represents a player's private collection of cards.
+ * @brief Represents a player's cards.
  */
 typedef struct {
-    Card cards[GAME_MAX_HAND_SIZE]; /**< Array of card IDs */
-    int count; /**< Number of cards currently held */
+    Card cards[GAME_MAX_HAND_SIZE]; // Array of card IDs
+    int count; // Number of cards in hand
 } Hand;
 
 /**
@@ -62,52 +62,49 @@ typedef struct {
  * @brief An entry in the game's move history log.
  */
 typedef struct {
-    int player; /**< Player index who made the move */
-    Move move; /**< The move data (type, cards, rank) */
+    int player; // Player who made the move
+    Move move; // Move data (type, rank, cards)
 } PlayRecord;
 
-#define GAME_MAX_PLAYS 60 /**< Safety upper bound for plays in a round */
+#define GAME_MAX_PLAYS 60 // Upper bound for number of plays in a game.
 
 /**
  * @struct GameState
- * @brief The state for an entire doudizhu match.
+ * @brief The state for an entire match.
  */
 typedef struct {
-    /* --- Deck & Deal --- */
-    Card deck[GAME_DECK_SIZE]; /**< The full deck of 54 cards */
-    Card kitty[GAME_KITTY_SIZE]; /**< The 3 hidden cards for the landlord */
+    // Deck and dealing
+    Card deck[GAME_DECK_SIZE]; // The full deck
+    Card kitty[GAME_KITTY_SIZE]; // The three kitty cards
 
-    /* --- Hands --- */
-    Hand hands[GAME_NUM_PLAYERS]; /**< Private hands for each player */
+    // Hands
+    Hand hands[GAME_NUM_PLAYERS]; // Each player's hand
 
-    /* --- Bidding --- */
-    BidState bid; /**< Current state of the bidding process */
-    int landlord; /**< Index of the landlord (-1 until bidding ends) */
-    int base_score; /**< The score multiplier (1, 2, or 3) from bidding */
+    // Bidding
+    BidState bid; // Current bidding state
+    int landlord; // Landlord player (PLAYER_NONE until bidding finishes)
+    int base_score; // Score multiplier from bidding
 
-    /* --- Playing --- */
-    GamePhase phase; /**< Current phase (Bidding, Playing, Over) */
-    int current_player; /**< Index of player whose turn it is */
-    int last_player; /**< Player who last played a non-pass move */
-    Move last_move; /**< The current move to beat on the table */
-    int passes_in_a_row; /**< Number of consecutive MOVE_PASS plays */
+    // Playing
+    GamePhase phase; // Current game state
+    int current_player; // Current player
+    int last_player; // Last player who played a non-pass move
+    Move last_move; // Current move to beat
+    int passes_in_a_row; // Number of consecutive passes
 
-    /* --- History --- */
-    PlayRecord history[GAME_MAX_PLAYS]; /**< Log of all moves played */
-    int history_count; /**< Total count of records in history */
+    // Playing history
+    PlayRecord history[GAME_MAX_PLAYS]; // Log of all moves played thus far
+    int history_count; // Total count of records in the log
 
-    /* --- Result --- */
-    int winner; /**< Winning player index (valid when phase == PHASE_OVER) */
-    int score; /**< Final calculated score including bomb multipliers */
-    int bomb_count; /**< Counter for bombs/rockets to double the score */
+    // Results
+    int winner; // Winning player index (only valid once phase == PHASE_OVER)
+    int score; // Final calculated score including bomb multipliers
+    int bomb_count; // Bomb and rockets counter
 } GameState;
 
-/* ---------------------------------------------------------------------------
- * Setup Functions
- * --------------------------------------------------------------------------- */
-
+/* --- Setup functions --- */
 /**
- * @brief Initializes a fresh GameState, zeroing out all memory.
+ * @brief Initializes a fresh GameState. All memory is zeroed out.
  * @param g Pointer to the GameState.
  */
 void game_init(GameState *g);
@@ -119,23 +116,20 @@ void game_init(GameState *g);
 void game_reset_deck(GameState *g);
 
 /**
- * @brief Shuffles the deck using a seeded PRNG.
+ * @brief Shuffles the deck using a seed.
  * @param g Pointer to the GameState.
- * @param seed Seed for the shuffle; use 0 to always get the same seed.
+ * @param seed Seed for the shuffle.
  */
 void game_shuffle(GameState *g, unsigned int seed);
 
 /**
  * @brief Deals 17 cards to each player and 3 to the kitty.
- * @note Must be called after game_shuffle().
  * @param g Pointer to the GameState.
+ * @note To get randomized playing hands, use game_shuffle() first.
  */
 void game_deal(GameState *g);
 
-/* ---------------------------------------------------------------------------
- * Bidding Phase
- * --------------------------------------------------------------------------- */
-
+/* --- Bidding --- */
 /**
  * @brief Switches the game phase to PHASE_BIDDING.
  * @param g Pointer to the GameState.
@@ -153,10 +147,7 @@ void game_start_bidding(GameState *g, int first_bidder);
  */
 int game_bid(GameState *g, int player, int value);
 
-/* ---------------------------------------------------------------------------
- * Playing Phase
- * --------------------------------------------------------------------------- */
-
+/* --- Playing --- */
 /**
  * @brief Executes a move for a player.
  * @param g Pointer to the GameState.
@@ -170,10 +161,7 @@ int game_bid(GameState *g, int player, int value);
  */
 int game_play(GameState *g, int player, const Move *move);
 
-/* ---------------------------------------------------------------------------
- * Queries & Utilities
- * --------------------------------------------------------------------------- */
-
+/* --- Querying and Utilities --- */
 /**
  * @brief Checks if a player holds the cards required for a move.
  * @param g Pointer to the GameState.
@@ -191,7 +179,7 @@ int game_player_has_cards(const GameState *g, int player, const Move *move);
  * @param max_out Size of the out buffer.
  * @return Total number of legal moves found.
  */
-int game_legal_moves(const GameState *g, int player, Move *out, int max_out);
+int game_legal_moves(const GameState *g, int player, Move out[], int max_out);
 
 /**
  * @brief Checks if the player is a peasant.

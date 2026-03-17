@@ -6,7 +6,7 @@
  */
 
 #include "selfplay.h"
-#include <string.h>
+#include "utils.h"
 #include <stdlib.h>
 
 static int clamp_int(const int value, const int lo, const int hi) {

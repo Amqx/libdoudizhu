@@ -6,30 +6,30 @@
  */
 
 #include "eval.h"
-#include <string.h>
+#include "utils.h"
 
-int eval_hand_score(const Card *cards, const int n) {
+int eval_hand_score(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, cnt);
 
     int score = 0;
 
-    /* Rocket (both jokers) */
+    // Rocket (both jokers)
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) score += 25;
 
-    /* Bombs (four-of-a-kind) */
+    // Bombs (four-of-a-kind)
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] >= 4) score += 20;
     }
 
-    /* High-value singletons */
+    // High-value singles
     score += cnt[RANK_BIG_JOKER] * 10;
     score += cnt[RANK_SMALL_JOKER] * 8;
     score += cnt[RANK_2] * 6;
     score += cnt[RANK_A] * 3;
     score += cnt[RANK_K] * 2;
 
-    /* Bonus for 5+ consecutive singles (straight potential) */
+    // Bonus for 5+ consecutive singles
     int run = 0;
     for (int r = RANK_3; r <= RANK_A; r++) {
         if (cnt[r] >= 1) {
@@ -40,7 +40,7 @@ int eval_hand_score(const Card *cards, const int n) {
         }
     }
 
-    /* Small bonuses for pairs and triples (combinatorial play value) */
+    // Small bonuses for pairs and triples
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 2) score += 2;
         else if (cnt[r] == 3) score += 5;
@@ -49,7 +49,7 @@ int eval_hand_score(const Card *cards, const int n) {
     return score;
 }
 
-int eval_count_bombs(const Card *cards, const int n) {
+int eval_count_bombs(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, cnt);
 
@@ -61,10 +61,10 @@ int eval_count_bombs(const Card *cards, const int n) {
     return bombs;
 }
 
-/* ---------------------------------------------------------------------------
- * Internal helper: absorb one kicker card from a rank-count array, preferring
- * isolated singletons (cnt == 1) to preserve pairs and triples.
- * --------------------------------------------------------------------------- */
+/**
+ * Absorb a kicker from rank-count arrays, preferring singles.
+ * @param tmp Rank count array of available cards.
+ */
 static void absorb_kicker(int tmp[RANK_COUNT_SIZE]) {
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (tmp[r] == 1) {
@@ -82,28 +82,26 @@ static void absorb_kicker(int tmp[RANK_COUNT_SIZE]) {
 
 /**
  * @brief Core greedy min-plays algorithm operating on a mutable rank-count array.
- *
- * Priority: rocket → bombs → airplane chains (with kickers) → pair straights
- * → single straights → remaining triples (with kickers) → pairs → singles.
+ * @param tmp Rank count array of available cards.
  */
 static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
     int plays = 0;
 
-    /* Rocket (both jokers together = 1 play) */
+    // Rocket (both jokers together = 1 play)
     if (tmp[RANK_SMALL_JOKER] >= 1 && tmp[RANK_BIG_JOKER] >= 1) {
         plays++;
         tmp[RANK_SMALL_JOKER] = 0;
         tmp[RANK_BIG_JOKER] = 0;
     }
 
-    /* Bombs (four-of-a-kind = 1 play each) */
+    // Bombs (four-of-a-kind = 1 play each)
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         plays += tmp[r] / 4;
         tmp[r] %= 4;
     }
 
-    /* Greedy: longest consecutive airplane chain (triples, length >= 2 = 1 play).
-     * Each airplane slot absorbs one kicker (saving a future play). */
+    // Longest consecutive airplane chain (triples, length >= 2 = 1 play).
+    // Each airplane slot absorbs one kicker (saving a future play).
     for (;;) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
@@ -129,7 +127,7 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         plays++;
     }
 
-    /* Greedy: longest consecutive pair straight (length >= 3 pairs = 1 play) */
+    // Longest consecutive pair straight (length >= 3 pairs = 1 play)
     for (;;) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
@@ -154,7 +152,7 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         plays++;
     }
 
-    /* Greedy: longest single straight (length >= 5 = 1 play) */
+    // Longest single straight (length >= 5 = 1 play)
     for (;;) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
@@ -179,7 +177,7 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         plays++;
     }
 
-    /* Remaining triples (each absorbs 1 kicker, saving 1 future play) */
+    // Remaining triples (each absorbs 1 kicker, saving 1 future play)
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         while (tmp[r] >= 3) {
             tmp[r] -= 3;
@@ -188,13 +186,13 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         }
     }
 
-    /* Remaining pairs */
+    // Remaining pairs
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         plays += tmp[r] / 2;
         tmp[r] %= 2;
     }
 
-    /* Remaining singles */
+    // Remaining singles
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         plays += tmp[r];
     }
@@ -202,21 +200,22 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
     return plays;
 }
 
-int eval_min_plays(const Card *cards, const int n) {
+int eval_min_plays(const Card cards[], const int n) {
     int tmp[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, tmp);
     return min_plays_inner(tmp);
 }
 
 int eval_min_plays_counts(const int cnt[RANK_COUNT_SIZE], const int n) {
-    (void) n; /* n is implicit in the count array; kept for API symmetry */
+    (void) n;
     int tmp[RANK_COUNT_SIZE];
     memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     return min_plays_inner(tmp);
 }
 
 /**
- * @brief Internal helper: compute control bonus from a rank-count array.
+ * Gives a bonus for control cards in a rank count array.
+ * @param cnt Cards available in hand.
  */
 static int control_bonus(const int cnt[RANK_COUNT_SIZE]) {
     int c = 0;
@@ -229,27 +228,27 @@ static int control_bonus(const int cnt[RANK_COUNT_SIZE]) {
     return c;
 }
 
-int eval_bid_strength(const Card *cards, const int n) {
+int eval_bid_strength(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, cnt);
     int score = 0;
 
-    /* Rocket: ultimate finisher */
+    // Rocket gets the biggest bonus
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) score += 30;
 
-    /* Bombs */
+    // Bombs
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] >= 4) score += 20;
     }
 
-    /* High-control singletons */
+    // High-control singles
     score += cnt[RANK_BIG_JOKER] * 10;
     score += cnt[RANK_SMALL_JOKER] * 8;
     score += cnt[RANK_2] * 7;
     score += cnt[RANK_A] * 3;
     score += cnt[RANK_K] * 1;
 
-    /* Bonus for a hand that empties quickly (less dead weight) */
+    // Bonus for a hand that empties quickly
     const int mp = eval_min_plays_counts(cnt, n);
     if (mp <= 5) score += 5;
     if (mp <= 3) score += 5;
@@ -257,7 +256,7 @@ int eval_bid_strength(const Card *cards, const int n) {
     return score;
 }
 
-int eval_play_position(const Card *cards, const int n) {
+int eval_play_position(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, cnt);
     const int mp = eval_min_plays_counts(cnt, n);

@@ -6,6 +6,9 @@
  */
 
 #include "bot.h"
+#ifdef DOUDIZHU_TUNING
+#include "tune.h"
+#endif
 #include "eval.h"
 #include "test_framework.h"
 #include <string.h>
@@ -20,7 +23,7 @@ static Card mk(int rank, int suit) {
     return (Card)(rank * 4 + suit);
 }
 
-static void fill_rank(Card *buf, int rank, int n) {
+static void fill_rank(Card buf[], int rank, int n) {
     for (int i = 0; i < n; i++) buf[i] = mk(rank, i);
 }
 
@@ -587,6 +590,7 @@ static void test_landlord_weakness_inference_bonus(void) {
  * Tests: Goal 11 – bot_simulate self-play driver
  * --------------------------------------------------------------------------- */
 
+#ifdef DOUDIZHU_TUNING
 static void test_simulate_runs_without_crash(void) {
     begin_suite("bot_simulate: 50 games complete without illegal state");
 
@@ -612,6 +616,7 @@ static void test_simulate_deterministic(void) {
     EXPECT_EQ(wins_a[1], wins_b[1], "player 1 wins match");
     EXPECT_EQ(wins_a[2], wins_b[2], "player 2 wins match");
 }
+#endif /* DOUDIZHU_TUNING */
 
 static void test_default_weights_accessible(void) {
     begin_suite("bot: default weights struct is accessible and sane");
@@ -829,8 +834,10 @@ int main(void) {
     test_landlord_weakness_inference_bonus();
 
     /* Goal 11: Self-play simulation driver */
+#ifdef DOUDIZHU_TUNING
     test_simulate_runs_without_crash();
     test_simulate_deterministic();
+#endif
     test_default_weights_accessible();
 
     /* Goal 12: Partner signaling */

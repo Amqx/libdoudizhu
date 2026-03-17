@@ -5,46 +5,67 @@
  * @date 08-Mar-26
  */
 
+#include <stdlib.h>         // Since stdlib is already being used from game.c, we might as well use it for qsort too
+#include "utils.h"
 #include "moves.h"
-#include <string.h>
-#include <stdlib.h>
 
-/* Internal Helpers */
+// Rank definitions
+#define RANK_3              0
+#define RANK_10             7
+#define RANK_A              11
+#define RANK_2              12
+#define RANK_SMALL_JOKER    13
+#define RANK_BIG_JOKER      14
+#define RANK_MAX_STRAIGHT   RANK_A
 
-/**
- * @brief Comparator for qsort to sort cards by rank.
- */
+// Internal card comparison for qsort
 static int cmp_card_rank(const void *a, const void *b) {
-    return (CARD_RANK(*(const Card *) a)) - (CARD_RANK(*(const Card *) b));
+    const int ra = CARD_RANK(*(const Card *) a);
+    const int rb = CARD_RANK(*(const Card *) b);
+    return ra - rb;
 }
 
-void moves_count_ranks(const Card *cards, const int n, int cnt[RANK_COUNT_SIZE]) {
+void moves_count_ranks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
     memset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
     for (int i = 0; i < n; i++) {
-        const int r = CARD_RANK(cards[i]);
-        if (r < RANK_COUNT_SIZE) cnt[r]++;
+        cnt[CARD_RANK(cards[i])]++;
     }
 }
 
 /**
- * @brief Fills a card array from a count array using canonical card values.
- * @param cnt The rank-count source array.
- * @param out The destination card array.
- * @return The total number of cards written.
+ * Internal helper to populate a Move's cards array from a rank-count array.
+ * @param cnt Rank count array source
+ * @param dst Normal card hand to populate
  */
-static int fill_cards_from_counts(const int cnt[RANK_COUNT_SIZE], Card *out) {
-    int n = 0;
+static void fill_cards_from_counts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MAX_CARDS]) {
+    int idx = 0;
+    // We iterate 0-53 to find matching cards in standard deck order
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        for (int k = 0; k < cnt[r]; k++) {
-            // Use suit 0 (spade) as canonical card for that rank.
-            out[n++] = (r < 13) ? (Card)(r * 4) : (Card)(52 + (r - 13));
+        int needed = cnt[r];
+        if (needed <= 0) continue;
+
+        // Standard ranks (3 to 2) have 4 cards each
+        if (r < 13) {
+            for (int suit = 0; suit < 4 && needed > 0; suit++) {
+                dst[idx++] = (Card) (r * 4 + suit);
+                needed--;
+            }
+        } else if (r == RANK_SMALL_JOKER) {
+            dst[idx++] = 52;
+        } else {
+            dst[idx++] = 53;
         }
     }
-    return n;
 }
 
-/* Classification Helpers - Each of these returns 1 on a match and populates the move structures */
-
+/* --- Classification Helpers --- */
+/**
+ * Attempts to classify the move as the lowest single
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 1) return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
@@ -58,6 +79,13 @@ static int try_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
     return 0;
 }
 
+/**
+ * Attempts to classify the move as the lowest pair
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 2) return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
@@ -71,6 +99,13 @@ static int try_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     return 0;
 }
 
+/**
+ * Attempts to classify the move as the lowest triple
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 3) return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
@@ -84,6 +119,13 @@ static int try_triple(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
     return 0;
 }
 
+/**
+ * Attempts to classify the move as the lowest bomb
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_bomb(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 4) return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
@@ -97,6 +139,13 @@ static int try_bomb(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     return 0;
 }
 
+/**
+ * Attempts to classify the move as a rocket
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_rocket(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 2) return 0;
     if (cnt[RANK_SMALL_JOKER] == 1 && cnt[RANK_BIG_JOKER] == 1) {
@@ -108,6 +157,13 @@ static int try_rocket(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
     return 0;
 }
 
+/**
+ * Attempts to classify the move as a 3+1
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 4) return 0;
     int triple_rank = -1;
@@ -130,6 +186,13 @@ static int try_triple_single(const int cnt[RANK_COUNT_SIZE], const int total, Mo
     return 1;
 }
 
+/**
+ * Attempts to classify the move as a 3+2
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 5) return 0;
     int triple_rank = -1;
@@ -152,6 +215,13 @@ static int try_triple_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move
     return 0;
 }
 
+/**
+ * Attempts to classify the move as a straight
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 5) return 0;
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
@@ -175,6 +245,13 @@ static int try_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m
     return 1;
 }
 
+/**
+ * Attempts to classify the move as an N pair straight
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_pair_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 6 || total % 2 != 0) return 0;
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
@@ -199,7 +276,10 @@ static int try_pair_straight(const int cnt[RANK_COUNT_SIZE], const int total, Mo
 }
 
 /**
- * @brief Internal helper to find consecutive triples for airplanes.
+ * Internal helper to find consecutive triples.
+ * @param cnt Cards in hand
+ * @param out_start Starting position of the plane
+ * @param out_len Length of the plane
  */
 static int find_triple_run(const int cnt[RANK_COUNT_SIZE], int *out_start, int *out_len) {
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
@@ -220,6 +300,13 @@ static int find_triple_run(const int cnt[RANK_COUNT_SIZE], int *out_start, int *
     return 1;
 }
 
+/**
+ * Attempts to classify the move as an N triplet straight
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 6 || total % 3 != 0) return 0;
     int triple_cnt[RANK_COUNT_SIZE] = {0};
@@ -236,6 +323,13 @@ static int try_triple_straight(const int cnt[RANK_COUNT_SIZE], const int total, 
     return 1;
 }
 
+/**
+ * Attempts to classify the move as an N triplet straight and N singles
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple_straight_singles(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 8 || total % 4 != 0) return 0;
     const int n = total / 4;
@@ -260,6 +354,13 @@ static int try_triple_straight_singles(const int cnt[RANK_COUNT_SIZE], const int
     return 1;
 }
 
+/**
+ * Attempts to classify the move as an N triplet straight and N pairs
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_triple_straight_pairs(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total < 10 || total % 5 != 0) return 0;
     const int n = total / 5;
@@ -283,6 +384,13 @@ static int try_triple_straight_pairs(const int cnt[RANK_COUNT_SIZE], const int t
     return 1;
 }
 
+/**
+ * Attempts to classify the move as a quad + 2 singles
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_four_two_singles(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 6) return 0;
     int quad_rank = -1;
@@ -306,6 +414,13 @@ static int try_four_two_singles(const int cnt[RANK_COUNT_SIZE], const int total,
     return 1;
 }
 
+/**
+ * Attempts to classify the move as an N triplet straight + 2 pairs
+ * @param cnt Rank count hand
+ * @param total Cards in hand
+ * @param m Move to classify into
+ * @return 1 if successful
+ */
 static int try_four_two_pairs(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
     if (total != 8) return 0;
     int quad_rank = -1;
@@ -329,8 +444,7 @@ static int try_four_two_pairs(const int cnt[RANK_COUNT_SIZE], const int total, M
     return 1;
 }
 
-/* Public Classifications */
-
+/* --- Public Classification Functions --- */
 Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], const int total) {
     Move m = {0};
     m.type = MOVE_INVALID;
@@ -361,7 +475,7 @@ Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], const int total) {
     return m;
 }
 
-Move moves_classify(const Card *cards, const int n) {
+Move moves_classify(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(cards, n, cnt);
     Move m = moves_classify_counts(cnt, n);
@@ -372,8 +486,7 @@ Move moves_classify(const Card *cards, const int n) {
     return m;
 }
 
-/* Comparison Logic */
-
+/* --- Comparison Logic --- */
 int moves_beats(const Move *play, const Move *prev) {
     if (play->type == MOVE_PASS || play->type == MOVE_INVALID) return 0;
     if (prev->type == MOVE_PASS) return 1;
@@ -393,13 +506,26 @@ int moves_beats(const Move *play, const Move *prev) {
     return play->rank > prev->rank;
 }
 
-/* Move Generation */
+/* --- Move Generation --- */
+/**
+ * Logic to choose combinations of kicker ranks.
+ * @param chosen Array of chosen kickers
+ * @param k Length of the array
+ * @param ctx Context pointer
+ */
+typedef void (*kicker_cb)(const int chosen[], int k, const void *ctx);
 
 /**
- * @brief Logic to choose combinations of kicker ranks.
+ * Chooses all available kickers
+ * @param cnt Rank count hand
+ * @param need Number of kickers needed
+ * @param k Current depth
+ * @param chosen Array of chosen kickers
+ * @param depth Depth to search
+ * @param start Starting depth
+ * @param cb Callback function for choosing kickers
+ * @param ctx Context pointer
  */
-typedef void (*kicker_cb)(const int chosen[], int k, void *ctx);
-
 static void choose_kickers(const int cnt[RANK_COUNT_SIZE], const int need,
                            const int k, int chosen[], const int depth, const int start,
                            const kicker_cb cb, void *ctx) {
@@ -430,7 +556,13 @@ typedef struct {
     const int *cnt;
 } KickerCtx;
 
-static void on_kickers_chosen(const int chosen[], const int k, void *ctx_) {
+/**
+ * Creates the kicker-typed move once it's been chosen.
+ * @param chosen Available kickers
+ * @param k Number of kickers to take
+ * @param ctx_ Context pointer
+ */
+static void on_kickers_chosen(const int chosen[], const int k, const void *ctx_) {
     const KickerCtx *ctx = ctx_;
     int tmp[RANK_COUNT_SIZE] = {0};
     for (int r = ctx->plane_start; r < ctx->plane_start + ctx->plane_len; r++)
@@ -449,9 +581,16 @@ static void on_kickers_chosen(const int chosen[], const int k, void *ctx_) {
     (*ctx->n)++;
 }
 
-/* Generation sub-routines (Singles, Pairs, Triples, Bombs, Straights, etc.) */
-
-static void gen_singles(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/* --- Generation Subroutines --- */
+/**
+ * Generates all valid, playable singles.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_singles(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 1) continue;
         if (prev->type == MOVE_PASS || (r > prev->rank)) {
@@ -465,7 +604,15 @@ static void gen_singles(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *
     }
 }
 
-static void gen_pairs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates all valid, playable pairs.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_pairs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     const int min_rank = (prev->type == MOVE_PAIR) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 2) continue;
@@ -478,7 +625,15 @@ static void gen_pairs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *ou
     }
 }
 
-static void gen_triples(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates all valid, playable triples.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_triples(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     const int min_rank = (prev->type == MOVE_TRIPLE) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 3) continue;
@@ -491,7 +646,15 @@ static void gen_triples(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *
     }
 }
 
-static void gen_bombs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates all valid, playable bombs.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_bombs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     const int min_rank = (prev->type == MOVE_BOMB) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 4) continue;
@@ -504,7 +667,15 @@ static void gen_bombs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *ou
     }
 }
 
-static void gen_rocket(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates a rocket if it's in hand.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_rocket(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     if (prev->type == MOVE_ROCKET) return;
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) {
         Move m = {MOVE_ROCKET, {0}, 2, RANK_BIG_JOKER, 1};
@@ -517,7 +688,15 @@ static void gen_rocket(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *o
     }
 }
 
-static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates all valid, playable straights.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
     const int req_len = (prev->type == MOVE_STRAIGHT) ? prev->length : 5;
     const int min_rank = (prev->type == MOVE_STRAIGHT) ? prev->rank : 0;
     const int len_max = (prev->type == MOVE_STRAIGHT) ? req_len : RANK_MAX_STRAIGHT + 1;
@@ -542,7 +721,16 @@ static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move
     }
 }
 
-static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out, int *n) {
+/**
+ * Generates all valid, playable pair straights.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
+                               int *n) {
     const int req_len = (prev->type == MOVE_PAIR_STRAIGHT) ? prev->length : 3;
     const int min_rank = (prev->type == MOVE_PAIR_STRAIGHT) ? prev->rank : 0;
     const int len_max = (prev->type == MOVE_PAIR_STRAIGHT) ? req_len : RANK_MAX_STRAIGHT + 1;
@@ -567,7 +755,15 @@ static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev,
     }
 }
 
-static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out,
+/**
+ * Generates all valid, playable triplet straights.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
                                  int *n) {
     const int req_len = (prev->type == MOVE_TRIPLE_STRAIGHT) ? prev->length : 2;
     const int min_rank = (prev->type == MOVE_TRIPLE_STRAIGHT) ? prev->rank : 0;
@@ -593,8 +789,18 @@ static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *pre
     }
 }
 
+/**
+ * Generates all valid, playable 3 + n's.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param type Type of 3 + n to generate
+ * @param kicker_need Number of kickers needed
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
 static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, const MoveType type,
-                              const int kicker_need, Move *out, const int max_out, int *n) {
+                              const int kicker_need, Move out[], const int max_out, int *n) {
     const int req_len = (prev->type == type) ? prev->length : 2;
     const int min_rank = (prev->type == type) ? prev->rank : 0;
     const int max_len = RANK_MAX_STRAIGHT;
@@ -619,8 +825,18 @@ static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, 
     }
 }
 
+/**
+ * Generates all valid, playable 4 + 2n's.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param type Type of 4 + 2n to generate
+ * @param kicker_need Number of kickers needed
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
 static void gen_four_two(const int cnt[RANK_COUNT_SIZE], const Move *prev, const MoveType type, const int kicker_need,
-                         Move *out, const int max_out, int *n) {
+                         Move out[], const int max_out, int *n) {
     const int min_rank = (prev->type == type) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] < 4) continue;
@@ -644,7 +860,15 @@ static void gen_four_two(const int cnt[RANK_COUNT_SIZE], const Move *prev, const
     }
 }
 
-static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out,
+/**
+ * Generates all valid, playable triples.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
                                    int *n) {
     const int min_rank = (prev->type == MOVE_TRIPLE_SINGLE) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
@@ -666,7 +890,15 @@ static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *p
     }
 }
 
-static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move *out, const int max_out,
+/**
+ * Generates all valid, playable triple pairs.
+ * @param cnt Rank count hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ * @param n Number of moves currently
+ */
+static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
                                  int *n) {
     const int min_rank = (prev->type == MOVE_TRIPLE_PAIR) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
@@ -688,7 +920,15 @@ static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *pre
     }
 }
 
-int moves_generate(const Card *hand, const int hand_size, const Move *prev, Move *out, const int max_out) {
+/**
+ * Generates all valid, playable moves.
+ * @param hand Available cards
+ * @param hand_size Number of cards in hand
+ * @param prev Previously played move
+ * @param out Out array for moves
+ * @param max_out Max number of moves to generate
+ */
+int moves_generate(const Card hand[], const int hand_size, const Move *prev, Move out[], const int max_out) {
     int cnt[RANK_COUNT_SIZE];
     moves_count_ranks(hand, hand_size, cnt);
     int n = 0;
@@ -742,8 +982,6 @@ int moves_generate(const Card *hand, const int hand_size, const Move *prev, Move
     }
     return n;
 }
-
-/* Util functions */
 
 const char *moves_type_name(const MoveType type) {
     switch (type) {

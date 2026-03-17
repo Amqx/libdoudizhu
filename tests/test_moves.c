@@ -19,7 +19,7 @@ static Card card(int rank, int suit) {
 }
 
 // Make N copies of the same rank (suits 0, 1, 2, 3).
-static void fill_rank(Card *buf, int rank, int n) {
+static void fill_rank(Card buf[], int rank, int n) {
     for (int i = 0; i < n; i++) buf[i] = card(rank, i);
 }
 

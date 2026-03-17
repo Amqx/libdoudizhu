@@ -64,3 +64,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 build
+.cache
+.idea
+.vscode
