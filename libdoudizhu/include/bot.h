@@ -29,7 +29,7 @@ typedef struct {
     int ctrl_2_penalty; // Penalty for using a 2 as a response card
     int ctrl_sj_penalty; // Penalty for using the small joker as a response
     int ctrl_bj_penalty; // Penalty for using the big joker as a response
-    int must_stop_multiplier; // Score multiplier for eval_move_cost in must-stop
+    int must_stop_multiplier; // Score multiplier for evalMoveCost in must-stop
 
     // Combo integrity
     int break_combo_penalty; // Penalty for breaking a bomb or rocket
@@ -44,7 +44,8 @@ typedef struct {
     // Opponent inference
     int bid3_ctrl_reduction; // Reduce control cards saving penalty when the landlord bids 3 (indicates stronger hand)
     int void_threshold;
-    // Pass count before inferring a type void (Number of moves a player must skip before the bot can infer that player is unable to play that type)
+    // Pass count before inferring a type void (Number of moves a player must skip before the bot can infer that player
+    // is unable to play that type)
 
     // Strategic leading bonuses
     int landlord_weak_bonus; // Bonus for leading a type the landlord is weak in
@@ -52,10 +53,10 @@ typedef struct {
 } BotWeights;
 
 /**
- * @brief Returns the default weights used by bot_bid and bot_play.
+ * @brief Returns the default weights used by botBid and botPlay.
  * @return Pointer to the internal default BotWeights.
  */
-const BotWeights *bot_default_weights(void);
+const BotWeights* botDefaultWeights(void);
 
 /**
  * @brief Decides a bid value for a bot player.
@@ -64,16 +65,16 @@ const BotWeights *bot_default_weights(void);
  * @return Bid value: 0 (pass) or 1–3. Always strictly exceeds the current
  *         highest bid, or 0 if the hand is too weak to outbid.
  */
-int bot_bid(const GameState *g, int player);
+int botBid(const GameState* g, int player);
 
 /**
- * @brief Weight-configurable variant of bot_bid.
+ * @brief Weight-configurable variant of botBid.
  * @param g Pointer to the current GameState.
  * @param player Index of the player whose bid is being decided.
  * @param weights Tuning constants to use, or NULL for defaults.
  * @return Bid value: 0 (pass) or 1–3.
  */
-int bot_bid_with_weights(const GameState *g, int player, const BotWeights *weights);
+int botBidWithWeights(const GameState* g, int player, const BotWeights* weights);
 
 /**
  * @brief Selects a move for a bot player during the playing phase.
@@ -81,15 +82,15 @@ int bot_bid_with_weights(const GameState *g, int player, const BotWeights *weigh
  * @param player Index of the player whose turn it is.
  * @return The chosen Move. Will be MOVE_PASS if the bot elects not to play.
  */
-Move bot_play(const GameState *g, int player);
+Move botPlay(const GameState* g, int player);
 
 /**
- * @brief Weight-configurable variant of bot_play.
+ * @brief Weight-configurable variant of botPlay.
  * @param g Pointer to the current GameState.
  * @param player Index of the player whose turn it is.
  * @param weights Tuning constants to use, or NULL for defaults.
  * @return The chosen Move.
  */
-Move bot_play_with_weights(const GameState *g, int player, const BotWeights *weights);
+Move botPlayWithWeights(const GameState* g, int player, const BotWeights* weights);
 
-#endif //LIBDOUDIZHU_BOT_H
+#endif // LIBDOUDIZHU_BOT_H

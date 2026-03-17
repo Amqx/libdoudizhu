@@ -13,10 +13,10 @@
 /**
  * @brief Initializes a BotWeights struct with the default values.
  * @param out Destination to fill; must not be NULL.
- * @details Always call this (or copy from bot_default_weights()) before
- *          using bot_weights_set() to tweak individual fields.
+ * @details Always call this (or copy from botDefaultWeights()) before
+ *          using botWeightsSet() to tweak individual fields.
  */
-void bot_weights_init(BotWeights * out);
+void botWeightsInit(BotWeights* out);
 
 /**
  * @brief Returns the number of integer fields in BotWeights.
@@ -24,14 +24,14 @@ void bot_weights_init(BotWeights * out);
  * @details BotWeights is intentionally all-integer, so generic tuning code can
  *          index into it without bespoke per-field logic.
  */
-int bot_weights_count(void);
+int botWeightsCount(void);
 
 /**
  * @brief Returns a stable field name for a BotWeights index.
- * @param index Zero-based field index in [0, bot_weights_count()).
+ * @param index Zero-based field index in [0, botWeightsCount()).
  * @return Pointer to a static string, or NULL for an invalid index.
  */
-const char *bot_weights_name(int index);
+const char* botWeightsName(int index);
 
 /**
  * @brief Copies a BotWeights field out by index.
@@ -39,7 +39,7 @@ const char *bot_weights_name(int index);
  * @param index Zero-based field index.
  * @return Field value, or 0 if the index is invalid.
  */
-int bot_weights_get(const BotWeights *weights, int index);
+int botWeightsGet(const BotWeights* weights, int index);
 
 /**
  * @brief Writes a BotWeights field by index.
@@ -48,25 +48,25 @@ int bot_weights_get(const BotWeights *weights, int index);
  * @param value New field value.
  * @return 1 on success, 0 on invalid index or NULL weights.
  */
-int bot_weights_set(BotWeights *weights, int index, int value);
+int botWeightsSet(BotWeights* weights, int index, int value);
 
 /**
  * @brief Returns the minimum sensible value for a BotWeights field.
- * @param index Zero-based field index in [0, bot_weights_count()).
+ * @param index Zero-based field index in [0, botWeightsCount()).
  * @return Minimum value, or 0 for an invalid index.
  * @details Use these bounds in tuning/arena code instead of a flat [0, N]
  *          range.  Fields such as pos_lead_divisor have a minimum of 1 to
  *          avoid divide-by-zero; count fields like void_threshold are capped
  *          well below 1000.
  */
-int bot_weights_min(int index);
+int botWeightsMin(int index);
 
 /**
  * @brief Returns the maximum sensible value for a BotWeights field.
- * @param index Zero-based field index in [0, bot_weights_count()).
+ * @param index Zero-based field index in [0, botWeightsCount()).
  * @return Maximum value, or 0 for an invalid index.
  */
-int bot_weights_max(int index);
+int botWeightsMax(int index);
 
 /**
  * @brief Runs a series of complete bot-vs-bot games and tallies winner counts.
@@ -76,7 +76,7 @@ int bot_weights_max(int index);
  * @details Games where every player passes during bidding (no landlord) are
  *          skipped and do not count toward num_games.
  */
-void bot_simulate(int num_games, unsigned int base_seed, int wins_out[GAME_NUM_PLAYERS]);
+void botSimulate(int num_games, unsigned int base_seed, int wins_out[GAME_NUM_PLAYERS]);
 
 /**
  * @brief Evaluates candidate weights against default-weight opponents.
@@ -91,18 +91,17 @@ void bot_simulate(int num_games, unsigned int base_seed, int wins_out[GAME_NUM_P
  * @param wins_as_landlord Filled with candidate win count from series A (out of num_games).
  * @param wins_as_peasant  Filled with peasant-team win count from series B (out of num_games).
  */
-void bot_evaluate_weights(const BotWeights *candidate, int num_games, unsigned int base_seed,
-                          int *wins_as_landlord, int *wins_as_peasant);
+void botEvaluateWeights(const BotWeights* candidate, int num_games, unsigned int base_seed, int* wins_as_landlord,
+                        int* wins_as_peasant);
 
 /**
- * @brief Weight-configurable variant of bot_simulate.
+ * @brief Weight-configurable variant of botSimulate.
  * @param num_games Number of games to simulate.
  * @param base_seed Starting PRNG seed; game i uses seed (base_seed + i).
  * @param per_player_weights Weight set for each seat; NULL entry uses defaults.
  * @param wins_out Array of size GAME_NUM_PLAYERS filled with per-player win counts.
  */
-void bot_simulate_with_weights(int num_games, unsigned int base_seed,
-                               const BotWeights *per_player_weights[GAME_NUM_PLAYERS],
-                               int wins_out[GAME_NUM_PLAYERS]);
+void botSimulateWithWeights(int num_games, unsigned int base_seed,
+                            const BotWeights* per_player_weights[GAME_NUM_PLAYERS], int wins_out[GAME_NUM_PLAYERS]);
 
-#endif //LIBDOUDIZHU_TUNE_H
+#endif // LIBDOUDIZHU_TUNE_H

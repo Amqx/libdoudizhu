@@ -10,24 +10,22 @@
 static int g_passed = 0;
 static int g_failed = 0;
 
-#define EXPECT(cond, msg) do { \
-    if (cond) { \
-        g_passed++; \
-    } else { \
-        fprintf(stderr, "  FAIL [%s:%d] %s\n", __FILE__, __LINE__, msg); \
-        g_failed++; \
-    } \
-} while (0)
+#define EXPECT(cond, msg)                                                                                              \
+    do {                                                                                                               \
+        if (cond) {                                                                                                    \
+            g_passed++;                                                                                                \
+        } else {                                                                                                       \
+            fprintf(stderr, "  FAIL [%s:%d] %s\n", __FILE__, __LINE__, msg);                                           \
+            g_failed++;                                                                                                \
+        }                                                                                                              \
+    } while (0)
 
 #define EXPECT_EQ(a, b, msg) EXPECT((a) == (b), msg)
 #define EXPECT_NE(a, b, msg) EXPECT((a) != (b), msg)
 
-static void begin_suite(const char *name) {
-    printf("| -> %s\n", name);
-}
+static void beginSuite(const char* name) { printf("| -> %s\n", name); }
 
-#define PRINT_RESULTS() \
-    printf("--- Results: %d passed, %d failed ---\n", g_passed, g_failed)
+#define PRINT_RESULTS() printf("--- Results: %d passed, %d failed ---\n", g_passed, g_failed)
 
 #define RETURN_TEST_RESULT() return (g_failed > 0 ? 1 : 0)
 

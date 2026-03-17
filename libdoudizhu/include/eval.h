@@ -18,7 +18,7 @@
  * @details Accounts for bombs, rockets, high singles (2s, jokers, aces),
  *          pairs, triples, and sequential potential.
  */
-int eval_hand_score(const Card cards[], int n);
+int evalHandScore(const Card cards[], int n);
 
 /**
  * @brief Counts the number of bombs (four of a kind) and rockets in a hand.
@@ -26,7 +26,7 @@ int eval_hand_score(const Card cards[], int n);
  * @param n Number of cards.
  * @return Total number of bomb/rocket combinations.
  */
-int eval_count_bombs(const Card cards[], int n);
+int evalCountBombs(const Card cards[], int n);
 
 /**
  * @brief Returns a cost score for a move; lower means weaker/cheaper to play.
@@ -35,7 +35,7 @@ int eval_count_bombs(const Card cards[], int n);
  * @details The scale is roughly the following: singles (0–14) < pairs (15–29) < triples (30–44)
  *          < chain moves (45–79) < bombs (80–94) < rocket (100).
  */
-int eval_move_cost(const Move *m);
+int evalMoveCost(const Move* m);
 
 /**
  * @brief Estimates the minimum number of plays to empty a hand, assuming the player leads every turn.
@@ -45,23 +45,23 @@ int eval_move_cost(const Move *m);
  * @details Greedily extracts rockets, bombs, airplanes (with kickers),
  *          pair straights, single straights, triples, pairs, then singles.
  */
-int eval_min_plays(const Card cards[], int n);
+int evalMinPlays(const Card cards[], int n);
 
 /**
- * @brief Rank-count-array variant of eval_min_plays.
+ * @brief Rank-count-array variant of evalMinPlays.
  * @param cnt Pre-computed rank-count array.
  * @param n   Total number of cards.
  * @return Estimated minimum play count.
  */
-int eval_min_plays_counts(const int cnt[RANK_COUNT_SIZE], int n);
+int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE], int n);
 
 /**
- * @brief Rank-count-array variant of eval_play_position.
+ * @brief Rank-count-array variant of evalPlayPosition.
  * @param cnt Pre-computed rank-count array.
  * @param n   Total number of cards.
  * @return Play-phase position score (higher = better).
  */
-int eval_play_position_counts(const int cnt[RANK_COUNT_SIZE], int n);
+int evalPlayPositionCounts(const int cnt[RANK_COUNT_SIZE], int n);
 
 /**
  * @brief Computes a bidding strength score on raw power.
@@ -70,7 +70,7 @@ int eval_play_position_counts(const int cnt[RANK_COUNT_SIZE], int n);
  * @return Integer score; higher means a stronger bidding hand.
  * @details Prioritises bombs, rockets, 2s, and jokers. Used for bid decisions.
  */
-int eval_bid_strength(const Card cards[], int n);
+int evalBidStrength(const Card cards[], int n);
 
 /**
  * @brief Computes a play-phase position score on control and tempo.
@@ -79,6 +79,6 @@ int eval_bid_strength(const Card cards[], int n);
  * @return Integer score; higher means better in-play position.
  * @details Combines hand clearing ability (min plays) with control card count.
  */
-int eval_play_position(const Card cards[], int n);
+int evalPlayPosition(const Card cards[], int n);
 
-#endif //LIBDOUDIZHU_EVAL_H
+#endif // LIBDOUDIZHU_EVAL_H

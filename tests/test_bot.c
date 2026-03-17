@@ -9,148 +9,154 @@
 #ifdef DOUDIZHU_TUNING
 #include "tune.h"
 #endif
+#include <string.h>
 #include "eval.h"
 #include "test_framework.h"
-#include <string.h>
 
 /* ---------------------------------------------------------------------------
  * Helpers
  * --------------------------------------------------------------------------- */
 
 static Card mk(int rank, int suit) {
-    if (rank == RANK_SMALL_JOKER) return 52;
-    if (rank == RANK_BIG_JOKER) return 53;
-    return (Card)(rank * 4 + suit);
+    if (rank == RANK_SMALL_JOKER)
+        return 52;
+    if (rank == RANK_BIG_JOKER)
+        return 53;
+    return (Card) (rank * 4 + suit);
 }
 
-static void fill_rank(Card buf[], int rank, int n) {
-    for (int i = 0; i < n; i++) buf[i] = mk(rank, i);
+static void fillRank(Card buf[], int rank, int n) {
+    for (int i = 0; i < n; i++)
+        buf[i] = mk(rank, i);
 }
 
 /* Build a dealt game ready for bidding. */
-static GameState make_dealt(unsigned int seed) {
+static GameState makeDealt(unsigned int seed) {
     GameState g;
-    game_init(&g);
-    game_reset_deck(&g);
-    game_shuffle(&g, seed);
-    game_deal(&g);
+    gameInit(&g);
+    gameResetDeck(&g);
+    gameShuffle(&g, seed);
+    gameDeal(&g);
     return g;
 }
 
 /* Run bidding with bots starting from player 0.
  * Returns the game after bidding resolves (phase may remain PHASE_BIDDING
  * if every bot passed). */
-static GameState run_bots_bid(unsigned int seed) {
-    GameState g = make_dealt(seed);
-    game_start_bidding(&g, 0);
+static GameState runBotsBid(unsigned int seed) {
+    GameState g = makeDealt(seed);
+    gameStartBidding(&g, 0);
     int iters = 0;
     while (g.phase == PHASE_BIDDING && iters++ < 20) {
         int p = g.bid.current_bidder;
-        int bid = bot_bid(&g, p);
-        if (!game_bid(&g, p, bid)) break; /* safety: illegal bid exits */
+        int bid = botBid(&g, p);
+        if (!gameBid(&g, p, bid))
+            break; /* safety: illegal bid exits */
     }
     return g;
 }
 
 /* Fast-forward to PHASE_PLAYING: player 0 bids 1, others pass. */
-static GameState make_playing_game(unsigned int seed) {
-    GameState g = make_dealt(seed);
-    game_start_bidding(&g, 0);
-    game_bid(&g, 0, 1);
-    game_bid(&g, 1, 0);
-    game_bid(&g, 2, 0);
+static GameState makePlayingGame(unsigned int seed) {
+    GameState g = makeDealt(seed);
+    gameStartBidding(&g, 0);
+    gameBid(&g, 0, 1);
+    gameBid(&g, 1, 0);
+    gameBid(&g, 2, 0);
     return g;
 }
 
 /* ---------------------------------------------------------------------------
- * Tests: bot_bid
+ * Tests: botBid
  * --------------------------------------------------------------------------- */
 
-static void test_bid_strong_hand(void) {
-    begin_suite("bot_bid: strong hand (bomb + rocket) bids >= 2");
+static void testBidStrongHand(void) {
+    beginSuite("botBid: strong hand (bomb + rocket) bids >= 2");
 
-    GameState g = make_dealt(1);
-    game_start_bidding(&g, 0);
+    GameState g = makeDealt(1);
+    gameStartBidding(&g, 0);
 
     /* Inject a clearly strong hand: bomb of Aces, rocket, two 2s */
     Card strong[] = {
-        mk(RANK_A, 0), mk(RANK_A, 1), mk(RANK_A, 2), mk(RANK_A, 3), /* bomb +20 */
-        mk(RANK_SMALL_JOKER, 0), mk(RANK_BIG_JOKER, 0), /* rocket +25, sj+8, bj+10 */
-        mk(RANK_2, 0), mk(RANK_2, 1), /* 2s +12 */
+            mk(RANK_A, 0),           mk(RANK_A, 1),         mk(RANK_A, 2), mk(RANK_A, 3), /* bomb +20 */
+            mk(RANK_SMALL_JOKER, 0), mk(RANK_BIG_JOKER, 0), /* rocket +25, sj+8, bj+10 */
+            mk(RANK_2, 0),           mk(RANK_2, 1), /* 2s +12 */
     };
     memcpy(g.hands[0].cards, strong, sizeof(strong));
     g.hands[0].count = (int) (sizeof(strong) / sizeof(strong[0]));
 
-    const int bid = bot_bid(&g, 0);
+    const int bid = botBid(&g, 0);
     EXPECT(bid >= 2, "strong hand bids at least 2");
     EXPECT(bid <= 3, "bid does not exceed 3");
 }
 
-static void test_bid_weak_hand_passes(void) {
-    begin_suite("bot_bid: weak hand (no bombs/control) passes");
+static void testBidWeakHandPasses(void) {
+    beginSuite("botBid: weak hand (no bombs/control) passes");
 
-    GameState g = make_dealt(1);
-    game_start_bidding(&g, 0);
+    GameState g = makeDealt(1);
+    gameStartBidding(&g, 0);
 
     /* All different low-middle ranks, ≤ 2 of each (no bomb, no jokers, no 2s) */
     Card weak[] = {
-        mk(RANK_3, 0), mk(RANK_5, 0), mk(RANK_7, 0),
-        mk(RANK_9, 0), mk(RANK_J, 0), mk(RANK_3, 1),
-        mk(RANK_5, 1), mk(RANK_7, 1),
+            mk(RANK_3, 0), mk(RANK_5, 0), mk(RANK_7, 0), mk(RANK_9, 0),
+            mk(RANK_J, 0), mk(RANK_3, 1), mk(RANK_5, 1), mk(RANK_7, 1),
     };
     memcpy(g.hands[0].cards, weak, sizeof(weak));
     g.hands[0].count = (int) (sizeof(weak) / sizeof(weak[0]));
     /* score: three pairs (3s,5s,7s) = 2+2+2 = 6  →  well below bid=1 threshold */
 
-    const int bid = bot_bid(&g, 0);
+    const int bid = botBid(&g, 0);
     EXPECT_EQ(bid, 0, "weak hand passes");
 }
 
-static void test_bid_always_exceeds_highest(void) {
-    begin_suite("bot_bid: bid always strictly exceeds current highest");
+static void testBidAlwaysExceedsHighest(void) {
+    beginSuite("botBid: bid always strictly exceeds current highest");
 
     /* Run 5 different seeds through full bidding; validate every bid. */
     for (int seed = 1; seed <= 5; seed++) {
-        GameState g = make_dealt((unsigned) seed * 997);
-        game_start_bidding(&g, 0);
+        GameState g = makeDealt((unsigned) seed * 997);
+        gameStartBidding(&g, 0);
 
         int iters = 0;
         while (g.phase == PHASE_BIDDING && iters++ < 10) {
             const int p = g.bid.current_bidder;
             const int before = g.bid.highest_score;
-            const int bid = bot_bid(&g, p);
+            const int bid = botBid(&g, p);
 
             EXPECT(bid >= 0 && bid <= 3, "bid is in range [0, 3]");
             if (bid > 0)
                 EXPECT(bid > before, "non-pass bid exceeds current highest");
 
-            if (!game_bid(&g, p, bid)) break;
+            if (!gameBid(&g, p, bid))
+                break;
         }
     }
 }
 
 /* ---------------------------------------------------------------------------
- * Tests: bot_play – full game simulation
+ * Tests: botPlay – full game simulation
  * --------------------------------------------------------------------------- */
 
-static void test_full_game_simulation(void) {
-    begin_suite("bot: full game – every move accepted, game reaches PHASE_OVER");
+static void testFullGameSimulation(void) {
+    beginSuite("bot: full game – every move accepted, game reaches PHASE_OVER");
 
     /* Run several seeds; skip rounds where all bots passed (no landlord). */
     const unsigned int seeds[] = {42, 137, 999, 2025, 7777};
     const int n_seeds = (int) (sizeof(seeds) / sizeof(seeds[0]));
 
     for (int s = 0; s < n_seeds; s++) {
-        GameState g = run_bots_bid(seeds[s]);
-        if (g.phase != PHASE_PLAYING) continue; /* all passed – skip */
+        GameState g = runBotsBid(seeds[s]);
+        if (g.phase != PHASE_PLAYING)
+            continue; /* all passed – skip */
 
         int turns = 0;
         while (g.phase == PHASE_PLAYING && turns < 300) {
             const int p = g.current_player;
-            const Move m = bot_play(&g, p);
-            const int ok = game_play(&g, p, &m);
+            const Move m = botPlay(&g, p);
+            const int ok = gamePlay(&g, p, &m);
             EXPECT(ok, "bot move accepted by game engine");
-            if (!ok) break;
+            if (!ok)
+                break;
             turns++;
         }
 
@@ -162,10 +168,10 @@ static void test_full_game_simulation(void) {
  * Tests: combination preservation
  * --------------------------------------------------------------------------- */
 
-static void test_does_not_break_bomb_when_leading(void) {
-    begin_suite("bot: does not play a partial bomb rank when leading");
+static void testDoesNotBreakBombWhenLeading(void) {
+    beginSuite("bot: does not play a partial bomb rank when leading");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -183,17 +189,17 @@ static void test_does_not_break_bomb_when_leading(void) {
     g.hands[p].cards[5] = mk(RANK_K, 0);
     g.hands[p].count = 6;
 
-    const Move m = bot_play(&g, p);
+    const Move m = botPlay(&g, p);
 
     /* Bot must NOT play a single 3 (that breaks the bomb of 3s). */
     const int broke_bomb = (m.type == MOVE_SINGLE && m.rank == RANK_3);
     EXPECT(!broke_bomb, "bot does not play single-3 when it holds a bomb of 3s");
 }
 
-static void test_does_not_open_with_bomb(void) {
-    begin_suite("bot: does not open with bomb when normal moves exist");
+static void testDoesNotOpenWithBomb(void) {
+    beginSuite("bot: does not open with bomb when normal moves exist");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -214,7 +220,7 @@ static void test_does_not_open_with_bomb(void) {
     g.hands[p].cards[5] = mk(RANK_J, 0);
     g.hands[p].count = 6;
 
-    const Move m = bot_play(&g, p);
+    const Move m = botPlay(&g, p);
     EXPECT(m.type != MOVE_BOMB && m.type != MOVE_ROCKET,
            "bot does not open with bomb when normal moves exist and no danger");
 }
@@ -223,10 +229,10 @@ static void test_does_not_open_with_bomb(void) {
  * Tests: peasant cooperation
  * --------------------------------------------------------------------------- */
 
-static void test_peasant_passes_for_partner(void) {
-    begin_suite("bot: peasant passes when partner controls table and no danger");
+static void testPeasantPassesForPartner(void) {
+    beginSuite("bot: peasant passes when partner controls table and no danger");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -254,15 +260,14 @@ static void test_peasant_passes_for_partner(void) {
     g.hands[peasant].cards[1] = mk(RANK_K, 0);
     g.hands[peasant].count = 2;
 
-    const Move m = bot_play(&g, peasant);
-    EXPECT_EQ(m.type, MOVE_PASS,
-              "peasant passes when partner has table and landlord is not threatening");
+    const Move m = botPlay(&g, peasant);
+    EXPECT_EQ(m.type, MOVE_PASS, "peasant passes when partner has table and landlord is not threatening");
 }
 
-static void test_peasant_overrides_cooperation_in_danger(void) {
-    begin_suite("bot: peasant does not yield when landlord is close to winning");
+static void testPeasantOverridesCooperationInDanger(void) {
+    beginSuite("bot: peasant does not yield when landlord is close to winning");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -288,20 +293,19 @@ static void test_peasant_overrides_cooperation_in_danger(void) {
     g.hands[peasant].cards[1] = mk(RANK_K, 0);
     g.hands[peasant].count = 2;
 
-    const Move m = bot_play(&g, peasant);
+    const Move m = botPlay(&g, peasant);
     /* Cooperation is overridden — the peasant must try to beat the table. */
-    EXPECT(m.type != MOVE_PASS,
-           "peasant does not yield when landlord is in danger");
+    EXPECT(m.type != MOVE_PASS, "peasant does not yield when landlord is in danger");
 }
 
 /* ---------------------------------------------------------------------------
  * Tests: bomb usage in danger
  * --------------------------------------------------------------------------- */
 
-static void test_bombs_when_enemy_close_to_winning(void) {
-    begin_suite("bot: peasant bombs when landlord has ≤ 3 cards");
+static void testBombsWhenEnemyCloseToWinning(void) {
+    beginSuite("bot: peasant bombs when landlord has ≤ 3 cards");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -332,22 +336,21 @@ static void test_bombs_when_enemy_close_to_winning(void) {
     g.hands[peasant].cards[4] = mk(RANK_3, 0);
     g.hands[peasant].count = 5;
 
-    const Move m = bot_play(&g, peasant);
-    EXPECT(m.type == MOVE_BOMB || m.type == MOVE_ROCKET,
-           "peasant uses bomb to stop landlord from winning");
+    const Move m = botPlay(&g, peasant);
+    EXPECT(m.type == MOVE_BOMB || m.type == MOVE_ROCKET, "peasant uses bomb to stop landlord from winning");
 }
 
 /* ---------------------------------------------------------------------------
  * Tests: strength inference from history
  * --------------------------------------------------------------------------- */
 
-static void test_high_cards_tracked_from_history(void) {
-    begin_suite("bot: control-card inference adjusts after 2s/jokers played");
+static void testHighCardsTrackedFromHistory(void) {
+    beginSuite("bot: control-card inference adjusts after 2s/jokers played");
 
     /* Play a full game with bots and verify that by the time all 2s and jokers
      * have appeared in the history, the game finishes without any illegal moves.
-     * This exercises the history-counting path in compute_ctx. */
-    GameState g = run_bots_bid(314159);
+     * This exercises the history-counting path in computeCtx. */
+    GameState g = runBotsBid(314159);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -356,11 +359,13 @@ static void test_high_cards_tracked_from_history(void) {
     int turns = 0, ok_count = 0;
     while (g.phase == PHASE_PLAYING && turns < 300) {
         const int p = g.current_player;
-        const Move m = bot_play(&g, p);
-        const int ok = game_play(&g, p, &m);
-        if (ok) ok_count++;
+        const Move m = botPlay(&g, p);
+        const int ok = gamePlay(&g, p, &m);
+        if (ok)
+            ok_count++;
         EXPECT(ok, "move accepted after high-card inference");
-        if (!ok) break;
+        if (!ok)
+            break;
         turns++;
     }
 
@@ -372,10 +377,10 @@ static void test_high_cards_tracked_from_history(void) {
  * Tests: pass-value (Goal 10) — peasant preserves control cards
  * --------------------------------------------------------------------------- */
 
-static void test_peasant_saves_2_instead_of_burning(void) {
-    begin_suite("bot: feeder peasant passes rather than burning a 2 on landlord's Ace");
+static void testPeasantSaves2InsteadOfBurning(void) {
+    beginSuite("bot: feeder peasant passes rather than burning a 2 on landlord's Ace");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -408,7 +413,7 @@ static void test_peasant_saves_2_instead_of_burning(void) {
     g.hands[peasant].cards[4] = mk(RANK_6, 0);
     g.hands[peasant].count = 5;
 
-    const Move m = bot_play(&g, peasant);
+    const Move m = botPlay(&g, peasant);
     /* Feeder should preserve the 2 — only a 2 can beat the A and there is
      * no immediate threat, so the cost of playing it exceeds the benefit. */
     EXPECT(m.type == MOVE_PASS || m.rank != RANK_2,
@@ -419,10 +424,10 @@ static void test_peasant_saves_2_instead_of_burning(void) {
  * Tests: post-move shape preservation (Goal 3)
  * --------------------------------------------------------------------------- */
 
-static void test_does_not_break_straight_when_leading(void) {
-    begin_suite("bot: prefers not to break a 5-card straight for a single");
+static void testDoesNotBreakStraightWhenLeading(void) {
+    beginSuite("bot: prefers not to break a 5-card straight for a single");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -445,25 +450,25 @@ static void test_does_not_break_straight_when_leading(void) {
     g.hands[(p + 1) % 3].count = 15;
     g.hands[(p + 2) % 3].count = 15;
 
-    const Move m = bot_play(&g, p);
+    const Move m = botPlay(&g, p);
 
     /* The bot should play the straight (6 cards in 1 play) or the isolated 9,
      * NOT break the straight into individual singles. */
     int broke_straight = 0;
     if (m.type == MOVE_SINGLE) {
         /* Playing a single from within the straight 3-7 breaks it */
-        if (m.rank >= RANK_3 && m.rank <= RANK_7) broke_straight = 1;
+        if (m.rank >= RANK_3 && m.rank <= RANK_7)
+            broke_straight = 1;
     }
-    EXPECT(!broke_straight,
-           "bot does not break a 5-card straight by picking a single from it");
+    EXPECT(!broke_straight, "bot does not break a 5-card straight by picking a single from it");
 }
 
 /* ---------------------------------------------------------------------------
  * Tests: Goal 9 – opponent inference
  * --------------------------------------------------------------------------- */
 
-static void test_bid3_landlord_makes_peasant_spend_control(void) {
-    begin_suite("bot: peasant more willing to spend 2 when landlord bid 3");
+static void testBid3LandlordMakesPeasantSpendControl(void) {
+    beginSuite("bot: peasant more willing to spend 2 when landlord bid 3");
 
     /* We compare the bot's response with bid=1 vs bid=3.
      * Setup: feeder peasant, landlord just played single Ace.
@@ -471,7 +476,7 @@ static void test_bid3_landlord_makes_peasant_spend_control(void) {
      * At bid=1 the feeder saves the 2 (passes).
      * At bid=3 the bot should be more willing to spend it. */
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -497,28 +502,26 @@ static void test_bid3_landlord_makes_peasant_spend_control(void) {
 
     /* bid=1: feeder should save the 2 (pass) */
     g.bid.scores[landlord] = 1;
-    const Move m1 = bot_play(&g, feeder);
-    EXPECT(m1.type == MOVE_PASS || m1.rank != RANK_2,
-           "feeder passes/saves 2 when landlord bid 1");
+    const Move m1 = botPlay(&g, feeder);
+    EXPECT(m1.type == MOVE_PASS || m1.rank != RANK_2, "feeder passes/saves 2 when landlord bid 1");
 
     /* bid=3: feeder may be willing to spend the 2 */
     g.bid.scores[landlord] = 3;
-    const Move m3 = bot_play(&g, feeder);
+    const Move m3 = botPlay(&g, feeder);
     /* We just verify the bot doesn't crash and produces a legal move. */
-    const int legal = (m3.type == MOVE_PASS)
-                      || (m3.type == MOVE_SINGLE && m3.rank == RANK_2);
+    const int legal = (m3.type == MOVE_PASS) || (m3.type == MOVE_SINGLE && m3.rank == RANK_2);
     EXPECT(legal, "feeder returns a legal move at bid=3");
 }
 
-static void test_landlord_weakness_inference_bonus(void) {
-    begin_suite("bot: peasant prefers leading type landlord passed on (Goal 9/12)");
+static void testLandlordWeaknessInferenceBonus(void) {
+    beginSuite("bot: peasant prefers leading type landlord passed on (Goal 9/12)");
 
     /* Build a game where the landlord has visibly passed on pairs multiple times.
      * We inject artificial history entries, then let the bot choose a lead.
      * The peasant hand has both a pair and a single available.
      * We expect the pair to be preferred. */
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -539,35 +542,15 @@ static void test_landlord_weakness_inference_bonus(void) {
 
     /* Round 1: gatekeeper leads pair 5s, feeder passes, landlord passes */
     Card p5[2] = {mk(RANK_5, 0), mk(RANK_5, 1)};
-    g.history[g.history_count++] = (PlayRecord) {
-        gatekeeper, moves_classify(p5, 2)
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        feeder, {
-            MOVE_PASS
-        }
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        landlord, {
-            MOVE_PASS
-        }
-    };
+    g.history[g.history_count++] = (PlayRecord) {gatekeeper, movesClassify(p5, 2)};
+    g.history[g.history_count++] = (PlayRecord) {feeder, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
 
     /* Round 2: gatekeeper leads pair 6s, feeder passes, landlord passes */
     Card p6[2] = {mk(RANK_6, 0), mk(RANK_6, 1)};
-    g.history[g.history_count++] = (PlayRecord) {
-        gatekeeper, moves_classify(p6, 2)
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        feeder, {
-            MOVE_PASS
-        }
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        landlord, {
-            MOVE_PASS
-        }
-    };
+    g.history[g.history_count++] = (PlayRecord) {gatekeeper, movesClassify(p6, 2)};
+    g.history[g.history_count++] = (PlayRecord) {feeder, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
 
     /* Gatekeeper now leads (empty table); hand has pair of 8s and single 3 */
     g.current_player = gatekeeper;
@@ -580,22 +563,22 @@ static void test_landlord_weakness_inference_bonus(void) {
     g.hands[landlord].count = 12;
     g.hands[feeder].count = 12;
 
-    const Move m = bot_play(&g, gatekeeper);
+    const Move m = botPlay(&g, gatekeeper);
     /* Bot should prefer the pair (landlord passed on pairs twice) over the single 3 */
     EXPECT(m.type == MOVE_PAIR || m.type == MOVE_STRAIGHT || m.type == MOVE_PASS,
            "gatekeeper prefers pair when landlord is weak against pairs");
 }
 
 /* ---------------------------------------------------------------------------
- * Tests: Goal 11 – bot_simulate self-play driver
+ * Tests: Goal 11 – botSimulate self-play driver
  * --------------------------------------------------------------------------- */
 
 #ifdef DOUDIZHU_TUNING
-static void test_simulate_runs_without_crash(void) {
-    begin_suite("bot_simulate: 50 games complete without illegal state");
+static void testSimulateRunsWithoutCrash(void) {
+    beginSuite("botSimulate: 50 games complete without illegal state");
 
     int wins[GAME_NUM_PLAYERS] = {0, 0, 0};
-    bot_simulate(50, 12345, wins);
+    botSimulate(50, 12345, wins);
 
     int total = wins[0] + wins[1] + wins[2];
     EXPECT(total > 0, "at least one game was won");
@@ -605,12 +588,12 @@ static void test_simulate_runs_without_crash(void) {
     EXPECT(wins[2] >= 0, "player 2 wins non-negative");
 }
 
-static void test_simulate_deterministic(void) {
-    begin_suite("bot_simulate: same seed gives same win counts");
+static void testSimulateDeterministic(void) {
+    beginSuite("botSimulate: same seed gives same win counts");
 
     int wins_a[GAME_NUM_PLAYERS], wins_b[GAME_NUM_PLAYERS];
-    bot_simulate(30, 99999, wins_a);
-    bot_simulate(30, 99999, wins_b);
+    botSimulate(30, 99999, wins_a);
+    botSimulate(30, 99999, wins_b);
 
     EXPECT_EQ(wins_a[0], wins_b[0], "player 0 wins match across identical seeds");
     EXPECT_EQ(wins_a[1], wins_b[1], "player 1 wins match");
@@ -618,11 +601,11 @@ static void test_simulate_deterministic(void) {
 }
 #endif /* DOUDIZHU_TUNING */
 
-static void test_default_weights_accessible(void) {
-    begin_suite("bot: default weights struct is accessible and sane");
+static void testDefaultWeightsAccessible(void) {
+    beginSuite("bot: default weights struct is accessible and sane");
 
-    const BotWeights *w = bot_default_weights();
-    EXPECT(w != NULL, "bot_default_weights() returns non-NULL");
+    const BotWeights* w = botDefaultWeights();
+    EXPECT(w != NULL, "botDefaultWeights() returns non-NULL");
     EXPECT(w->clear_per_card > 0, "clear_per_card is positive");
     EXPECT(w->break_combo_penalty > 0, "break_combo_penalty is positive");
     EXPECT(w->kicker_joker > w->kicker_king, "joker kicker penalty > king kicker penalty");
@@ -633,10 +616,10 @@ static void test_default_weights_accessible(void) {
  * Tests: Goal 12 – partner signaling
  * --------------------------------------------------------------------------- */
 
-static void test_partner_signal_prefers_matching_type(void) {
-    begin_suite("bot: peasant favours lead type partner has demonstrated (Goal 12)");
+static void testPartnerSignalPrefersMatchingType(void) {
+    beginSuite("bot: peasant favours lead type partner has demonstrated (Goal 12)");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     if (g.phase != PHASE_PLAYING) {
         g_passed++;
         return;
@@ -652,33 +635,13 @@ static void test_partner_signal_prefers_matching_type(void) {
     Card s5[1] = {mk(RANK_5, 0)};
     Card s6[1] = {mk(RANK_6, 0)};
     /* Round 1: feeder leads single 5, gatekeeper/landlord pass */
-    g.history[g.history_count++] = (PlayRecord) {
-        feeder, moves_classify(s5, 1)
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        landlord, {
-            MOVE_PASS
-        }
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        gatekeeper, {
-            MOVE_PASS
-        }
-    };
+    g.history[g.history_count++] = (PlayRecord) {feeder, movesClassify(s5, 1)};
+    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {gatekeeper, {MOVE_PASS}};
     /* Round 2: feeder leads single 6, others pass */
-    g.history[g.history_count++] = (PlayRecord) {
-        feeder, moves_classify(s6, 1)
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        landlord, {
-            MOVE_PASS
-        }
-    };
-    g.history[g.history_count++] = (PlayRecord) {
-        gatekeeper, {
-            MOVE_PASS
-        }
-    };
+    g.history[g.history_count++] = (PlayRecord) {feeder, movesClassify(s6, 1)};
+    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {gatekeeper, {MOVE_PASS}};
 
     /* Gatekeeper now leads; hand has a single 9 and a pair of Ks */
     g.current_player = gatekeeper;
@@ -691,22 +654,21 @@ static void test_partner_signal_prefers_matching_type(void) {
     g.hands[landlord].count = 12;
     g.hands[feeder].count = 12;
 
-    const Move m = bot_play(&g, gatekeeper);
+    const Move m = botPlay(&g, gatekeeper);
     /* Partner (feeder) has been leading singles — gatekeeper should favour a single.
      * Accept single or pair; just verify no crash and a legal non-bomb move. */
     EXPECT(m.type != MOVE_INVALID, "gatekeeper produces a valid lead");
-    EXPECT(m.type != MOVE_BOMB && m.type != MOVE_ROCKET,
-           "gatekeeper does not open with a bomb");
+    EXPECT(m.type != MOVE_BOMB && m.type != MOVE_ROCKET, "gatekeeper does not open with a bomb");
 }
 
 /* ---------------------------------------------------------------------------
  * main
  * --------------------------------------------------------------------------- */
 
-static void test_bot_must_stop_landlord(void) {
-    begin_suite("bot: peasant must stop landlord (1 card left)");
+static void testBotMustStopLandlord(void) {
+    beginSuite("bot: peasant must stop landlord (1 card left)");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     const int landlord = g.landlord;
     const int peasant = (landlord + 1) % 3; // gatekeeper
 
@@ -726,14 +688,14 @@ static void test_bot_must_stop_landlord(void) {
     g.hands[peasant].cards[1] = mk(RANK_A, 0);
     g.hands[peasant].count = 2;
 
-    const Move m = bot_play(&g, peasant);
+    const Move m = botPlay(&g, peasant);
     EXPECT_EQ(m.rank, RANK_A, "peasant plays strongest card (Ace) to stop landlord");
 }
 
-static void test_bot_gatekeeper_aggression(void) {
-    begin_suite("bot: gatekeeper aggressive against landlord");
+static void testBotGatekeeperAggression(void) {
+    beginSuite("bot: gatekeeper aggressive against landlord");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     const int landlord = g.landlord;
     const int gatekeeper = (landlord + 1) % 3;
 
@@ -750,43 +712,44 @@ static void test_bot_gatekeeper_aggression(void) {
     g.hands[gatekeeper].cards[1] = mk(RANK_K, 0);
     g.hands[gatekeeper].count = 2;
 
-    const Move m = bot_play(&g, gatekeeper);
+    const Move m = botPlay(&g, gatekeeper);
     // Gatekeeper should prefer to play something to stop landlord.
     EXPECT(m.type != MOVE_PASS, "gatekeeper does not pass on landlord lead");
 }
 
-static void test_bot_finishing_move(void) {
-    begin_suite("bot: always takes finishing move");
+static void testBotFinishingMove(void) {
+    beginSuite("bot: always takes finishing move");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     const int p = g.current_player;
 
     // Hand: 3-4-5-6-7 straight.
-    for (int i = 0; i < 5; i++) g.hands[p].cards[i] = mk(RANK_3 + i, 0);
+    for (int i = 0; i < 5; i++)
+        g.hands[p].cards[i] = mk(RANK_3 + i, 0);
     g.hands[p].count = 5;
 
-    const Move m = bot_play(&g, p);
+    const Move m = botPlay(&g, p);
     EXPECT_EQ(m.type, MOVE_STRAIGHT, "bot plays finishing straight");
     EXPECT_EQ(m.count, 5, "bot empties hand");
 }
 
-static void test_bot_avoids_breaking_bomb_as_kicker(void) {
-    begin_suite("bot: avoids using bomb rank as kicker");
+static void testBotAvoidsBreakingBombAsKicker(void) {
+    beginSuite("bot: avoids using bomb rank as kicker");
 
-    GameState g = make_playing_game(42);
+    GameState g = makePlayingGame(42);
     const int p = g.current_player;
 
     // Hand: 888 (triple) + 3333 (bomb) + 5 (single).
     // When playing triple 8s, should use 5 as kicker, NOT one of the 3s.
-    fill_rank(g.hands[p].cards, RANK_8, 3);
-    fill_rank(g.hands[p].cards + 3, RANK_3, 4);
+    fillRank(g.hands[p].cards, RANK_8, 3);
+    fillRank(g.hands[p].cards + 3, RANK_3, 4);
     g.hands[p].cards[7] = mk(RANK_5, 0);
     g.hands[p].count = 8;
 
-    const Move m = bot_play(&g, p);
+    const Move m = botPlay(&g, p);
     if (m.type == MOVE_TRIPLE_SINGLE && m.rank == RANK_8) {
         int mc[RANK_COUNT_SIZE];
-        moves_count_ranks(m.cards, m.count, mc);
+        movesCountRanks(m.cards, m.count, mc);
         // The kicker is the rank that has count 1.
         EXPECT_EQ(mc[RANK_5], 1, "uses 5 as kicker");
         EXPECT_EQ(mc[RANK_3], 0, "does not use a 3 from the bomb as kicker");
@@ -796,52 +759,52 @@ static void test_bot_avoids_breaking_bomb_as_kicker(void) {
 int main(void) {
     printf("--- Test file: %s ---\n", __FILE__);
     /* Bidding */
-    test_bid_strong_hand();
-    test_bid_weak_hand_passes();
-    test_bid_always_exceeds_highest();
+    testBidStrongHand();
+    testBidWeakHandPasses();
+    testBidAlwaysExceedsHighest();
 
     /* Full game */
-    test_full_game_simulation();
+    testFullGameSimulation();
 
     /* Combination preservation */
-    test_does_not_break_bomb_when_leading();
-    test_does_not_open_with_bomb();
-    test_bot_avoids_breaking_bomb_as_kicker();
+    testDoesNotBreakBombWhenLeading();
+    testDoesNotOpenWithBomb();
+    testBotAvoidsBreakingBombAsKicker();
 
     /* Peasant cooperation */
-    test_peasant_passes_for_partner();
-    test_peasant_overrides_cooperation_in_danger();
-    test_bot_must_stop_landlord();
-    test_bot_gatekeeper_aggression();
+    testPeasantPassesForPartner();
+    testPeasantOverridesCooperationInDanger();
+    testBotMustStopLandlord();
+    testBotGatekeeperAggression();
 
     /* Bomb usage */
-    test_bombs_when_enemy_close_to_winning();
+    testBombsWhenEnemyCloseToWinning();
 
     /* Strength inference */
-    test_high_cards_tracked_from_history();
+    testHighCardsTrackedFromHistory();
 
     /* Pass-value / control card preservation */
-    test_peasant_saves_2_instead_of_burning();
+    testPeasantSaves2InsteadOfBurning();
 
     /* Shape preservation */
-    test_does_not_break_straight_when_leading();
+    testDoesNotBreakStraightWhenLeading();
 
     /* Finishing */
-    test_bot_finishing_move();
+    testBotFinishingMove();
 
     /* Goal 9: Opponent inference */
-    test_bid3_landlord_makes_peasant_spend_control();
-    test_landlord_weakness_inference_bonus();
+    testBid3LandlordMakesPeasantSpendControl();
+    testLandlordWeaknessInferenceBonus();
 
     /* Goal 11: Self-play simulation driver */
 #ifdef DOUDIZHU_TUNING
-    test_simulate_runs_without_crash();
-    test_simulate_deterministic();
+    testSimulateRunsWithoutCrash();
+    testSimulateDeterministic();
 #endif
-    test_default_weights_accessible();
+    testDefaultWeightsAccessible();
 
     /* Goal 12: Partner signaling */
-    test_partner_signal_prefers_matching_type();
+    testPartnerSignalPrefersMatchingType();
 
     PRINT_RESULTS();
     RETURN_TEST_RESULT();

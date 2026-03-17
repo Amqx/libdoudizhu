@@ -8,18 +8,20 @@
 #include "eval.h"
 #include "utils.h"
 
-int eval_hand_score(const Card cards[], const int n) {
+int evalHandScore(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, cnt);
+    movesCountRanks(cards, n, cnt);
 
     int score = 0;
 
     // Rocket (both jokers)
-    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) score += 25;
+    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
+        score += 25;
 
     // Bombs (four-of-a-kind)
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] >= 4) score += 20;
+        if (cnt[r] >= 4)
+            score += 20;
     }
 
     // High-value singles
@@ -34,7 +36,8 @@ int eval_hand_score(const Card cards[], const int n) {
     for (int r = RANK_3; r <= RANK_A; r++) {
         if (cnt[r] >= 1) {
             run++;
-            if (run >= 5) score += 5;
+            if (run >= 5)
+                score += 5;
         } else {
             run = 0;
         }
@@ -42,21 +45,25 @@ int eval_hand_score(const Card cards[], const int n) {
 
     // Small bonuses for pairs and triples
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] == 2) score += 2;
-        else if (cnt[r] == 3) score += 5;
+        if (cnt[r] == 2)
+            score += 2;
+        else if (cnt[r] == 3)
+            score += 5;
     }
 
     return score;
 }
 
-int eval_count_bombs(const Card cards[], const int n) {
+int evalCountBombs(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, cnt);
+    movesCountRanks(cards, n, cnt);
 
     int bombs = 0;
-    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) bombs++;
+    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
+        bombs++;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] >= 4) bombs++;
+        if (cnt[r] >= 4)
+            bombs++;
     }
     return bombs;
 }
@@ -65,7 +72,7 @@ int eval_count_bombs(const Card cards[], const int n) {
  * Absorb a kicker from rank-count arrays, preferring singles.
  * @param tmp Rank count array of available cards.
  */
-static void absorb_kicker(int tmp[RANK_COUNT_SIZE]) {
+static void absorbKicker(int tmp[RANK_COUNT_SIZE]) {
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (tmp[r] == 1) {
             tmp[r] = 0;
@@ -84,7 +91,7 @@ static void absorb_kicker(int tmp[RANK_COUNT_SIZE]) {
  * @brief Core greedy min-plays algorithm operating on a mutable rank-count array.
  * @param tmp Rank count array of available cards.
  */
-static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
+static int minPlaysInner(int tmp[RANK_COUNT_SIZE]) {
     int plays = 0;
 
     // Rocket (both jokers together = 1 play)
@@ -106,7 +113,8 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
             if (tmp[r] >= 3) {
-                if (cur_s < 0) cur_s = r;
+                if (cur_s < 0)
+                    cur_s = r;
                 cur_l++;
             } else {
                 if (cur_l >= 2 && cur_l > best_l) {
@@ -121,9 +129,12 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
             best_s = cur_s;
             best_l = cur_l;
         }
-        if (best_l < 2) break;
-        for (int r = best_s; r < best_s + best_l; r++) tmp[r] -= 3;
-        for (int ki = 0; ki < best_l; ki++) absorb_kicker(tmp);
+        if (best_l < 2)
+            break;
+        for (int r = best_s; r < best_s + best_l; r++)
+            tmp[r] -= 3;
+        for (int ki = 0; ki < best_l; ki++)
+            absorbKicker(tmp);
         plays++;
     }
 
@@ -132,7 +143,8 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
             if (tmp[r] >= 2) {
-                if (cur_s < 0) cur_s = r;
+                if (cur_s < 0)
+                    cur_s = r;
                 cur_l++;
             } else {
                 if (cur_l >= 3 && cur_l > best_l) {
@@ -147,8 +159,10 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
             best_s = cur_s;
             best_l = cur_l;
         }
-        if (best_l < 3) break;
-        for (int r = best_s; r < best_s + best_l; r++) tmp[r] -= 2;
+        if (best_l < 3)
+            break;
+        for (int r = best_s; r < best_s + best_l; r++)
+            tmp[r] -= 2;
         plays++;
     }
 
@@ -157,7 +171,8 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         int best_s = -1, best_l = 0, cur_s = -1, cur_l = 0;
         for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
             if (tmp[r] >= 1) {
-                if (cur_s < 0) cur_s = r;
+                if (cur_s < 0)
+                    cur_s = r;
                 cur_l++;
             } else {
                 if (cur_l >= 5 && cur_l > best_l) {
@@ -172,8 +187,10 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
             best_s = cur_s;
             best_l = cur_l;
         }
-        if (best_l < 5) break;
-        for (int r = best_s; r < best_s + best_l; r++) tmp[r]--;
+        if (best_l < 5)
+            break;
+        for (int r = best_s; r < best_s + best_l; r++)
+            tmp[r]--;
         plays++;
     }
 
@@ -182,7 +199,7 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
         while (tmp[r] >= 3) {
             tmp[r] -= 3;
             plays++;
-            absorb_kicker(tmp);
+            absorbKicker(tmp);
         }
     }
 
@@ -200,45 +217,49 @@ static int min_plays_inner(int tmp[RANK_COUNT_SIZE]) {
     return plays;
 }
 
-int eval_min_plays(const Card cards[], const int n) {
+int evalMinPlays(const Card cards[], const int n) {
     int tmp[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, tmp);
-    return min_plays_inner(tmp);
+    movesCountRanks(cards, n, tmp);
+    return minPlaysInner(tmp);
 }
 
-int eval_min_plays_counts(const int cnt[RANK_COUNT_SIZE], const int n) {
+int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
     (void) n;
     int tmp[RANK_COUNT_SIZE];
-    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
-    return min_plays_inner(tmp);
+    lddzMemcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    return minPlaysInner(tmp);
 }
 
 /**
  * Gives a bonus for control cards in a rank count array.
  * @param cnt Cards available in hand.
  */
-static int control_bonus(const int cnt[RANK_COUNT_SIZE]) {
+static int controlBonus(const int cnt[RANK_COUNT_SIZE]) {
     int c = 0;
-    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) c += 15;
+    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
+        c += 15;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] >= 4) c += 10;
+        if (cnt[r] >= 4)
+            c += 10;
     }
     c += cnt[RANK_2] * 5;
     c += cnt[RANK_A] * 2;
     return c;
 }
 
-int eval_bid_strength(const Card cards[], const int n) {
+int evalBidStrength(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, cnt);
+    movesCountRanks(cards, n, cnt);
     int score = 0;
 
     // Rocket gets the biggest bonus
-    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) score += 30;
+    if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
+        score += 30;
 
     // Bombs
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] >= 4) score += 20;
+        if (cnt[r] >= 4)
+            score += 20;
     }
 
     // High-control singles
@@ -249,42 +270,60 @@ int eval_bid_strength(const Card cards[], const int n) {
     score += cnt[RANK_K] * 1;
 
     // Bonus for a hand that empties quickly
-    const int mp = eval_min_plays_counts(cnt, n);
-    if (mp <= 5) score += 5;
-    if (mp <= 3) score += 5;
+    const int mp = evalMinPlaysCounts(cnt, n);
+    if (mp <= 5)
+        score += 5;
+    if (mp <= 3)
+        score += 5;
 
     return score;
 }
 
-int eval_play_position(const Card cards[], const int n) {
+int evalPlayPosition(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, cnt);
-    const int mp = eval_min_plays_counts(cnt, n);
-    return 200 - mp * 15 + control_bonus(cnt);
+    movesCountRanks(cards, n, cnt);
+    const int mp = evalMinPlaysCounts(cnt, n);
+    return 200 - mp * 15 + controlBonus(cnt);
 }
 
-int eval_play_position_counts(const int cnt[RANK_COUNT_SIZE], const int n) {
-    if (n <= 0) return 200;
-    const int mp = eval_min_plays_counts(cnt, n);
-    return 200 - mp * 15 + control_bonus(cnt);
+int evalPlayPositionCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
+    if (n <= 0)
+        return 200;
+    const int mp = evalMinPlaysCounts(cnt, n);
+    return 200 - mp * 15 + controlBonus(cnt);
 }
 
-int eval_move_cost(const Move *m) {
+int evalMoveCost(const Move* m) {
     switch (m->type) {
-        case MOVE_SINGLE: return m->rank;
-        case MOVE_PAIR: return m->rank + 15;
-        case MOVE_TRIPLE: return m->rank + 30;
-        case MOVE_TRIPLE_SINGLE: return m->rank + 35;
-        case MOVE_TRIPLE_PAIR: return m->rank + 40;
-        case MOVE_STRAIGHT: return m->rank + 45;
-        case MOVE_PAIR_STRAIGHT: return m->rank + 50;
-        case MOVE_TRIPLE_STRAIGHT: return m->rank + 55;
-        case MOVE_TRIPLE_STRAIGHT_SINGLES: return m->rank + 60;
-        case MOVE_TRIPLE_STRAIGHT_PAIRS: return m->rank + 65;
-        case MOVE_FOUR_TWO_SINGLES: return m->rank + 70;
-        case MOVE_FOUR_TWO_PAIRS: return m->rank + 75;
-        case MOVE_BOMB: return m->rank + 80;
-        case MOVE_ROCKET: return 100;
-        default: return 0;
+        case MOVE_SINGLE:
+            return m->rank;
+        case MOVE_PAIR:
+            return m->rank + 15;
+        case MOVE_TRIPLE:
+            return m->rank + 30;
+        case MOVE_TRIPLE_SINGLE:
+            return m->rank + 35;
+        case MOVE_TRIPLE_PAIR:
+            return m->rank + 40;
+        case MOVE_STRAIGHT:
+            return m->rank + 45;
+        case MOVE_PAIR_STRAIGHT:
+            return m->rank + 50;
+        case MOVE_TRIPLE_STRAIGHT:
+            return m->rank + 55;
+        case MOVE_TRIPLE_STRAIGHT_SINGLES:
+            return m->rank + 60;
+        case MOVE_TRIPLE_STRAIGHT_PAIRS:
+            return m->rank + 65;
+        case MOVE_FOUR_TWO_SINGLES:
+            return m->rank + 70;
+        case MOVE_FOUR_TWO_PAIRS:
+            return m->rank + 75;
+        case MOVE_BOMB:
+            return m->rank + 80;
+        case MOVE_ROCKET:
+            return 100;
+        default:
+            return 0;
     }
 }

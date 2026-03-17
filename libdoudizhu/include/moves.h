@@ -8,7 +8,7 @@
 #ifndef LIBDOUDIZHU_MOVES_H
 #define LIBDOUDIZHU_MOVES_H
 
-#include <stdint.h>     // Required for uint8_t
+#include <stdint.h> // Required for uint8_t
 
 /** * @defgroup CardReps Card Representations
  * @brief Definitions for card values, ranks, and suits.
@@ -27,7 +27,7 @@
  */
 #define CARD_SUIT(c) ((c) % 4)
 
-#define RANK_3 0   // Lowest standard rank
+#define RANK_3 0 // Lowest standard rank
 #define RANK_4 1
 #define RANK_5 2
 #define RANK_6 3
@@ -39,9 +39,9 @@
 #define RANK_Q 9
 #define RANK_K 10
 #define RANK_A 11
-#define RANK_2 12  // Highest standard rank
+#define RANK_2 12 // Highest standard rank
 #define RANK_SMALL_JOKER 13
-#define RANK_BIG_JOKER   14
+#define RANK_BIG_JOKER 14
 
 /**
  * @brief Maximum rank allowed in a straight (2s and jokers are disallowed).
@@ -79,7 +79,7 @@ typedef enum {
  * @struct Move
  * @brief Represents a fully classified move played on the table.
  */
-#define MOVE_MAX_CARDS 20   // There are at most 20 cards in a hand, so 20 is the max a player can play in one hand.
+#define MOVE_MAX_CARDS 20 // There are at most 20 cards in a hand, so 20 is the max a player can play in one hand.
 
 typedef struct {
     MoveType type; // Category of the move.
@@ -98,7 +98,7 @@ typedef struct {
  * @param n Number of cards.
  * @param cnt Array of size RANK_COUNT_SIZE to be populated.
  */
-void moves_count_ranks(const Card cards[], int n, int cnt[RANK_COUNT_SIZE]);
+void movesCountRanks(const Card cards[], int n, int cnt[RANK_COUNT_SIZE]);
 
 /**
  * @brief Classifies an arbitrary set of cards into a Move structure.
@@ -106,7 +106,7 @@ void moves_count_ranks(const Card cards[], int n, int cnt[RANK_COUNT_SIZE]);
  * @param n Number of cards.
  * @return A Move structure; type is MOVE_INVALID if the combination is illegal.
  */
-Move moves_classify(const Card cards[], int n);
+Move movesClassify(const Card cards[], int n);
 
 /**
  * @brief Classifies cards based on a pre-computed rank-count array.
@@ -114,7 +114,7 @@ Move moves_classify(const Card cards[], int n);
  * @param total Total number of cards represented in the count array.
  * @return A Move structure.
  */
-Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], int total);
+Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], int total);
 
 /**
  * @brief Determines if a new play beats the previous play on the table.
@@ -122,7 +122,7 @@ Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], int total);
  * @param prev The current highest move on the table.
  * @return 1 if `play` legally beats `prev`, 0 otherwise.
  */
-int moves_beats(const Move *play, const Move *prev);
+int movesBeats(const Move* play, const Move* prev);
 
 /**
  * @brief Generates all legal moves from a hand that can beat the current table move.
@@ -133,21 +133,19 @@ int moves_beats(const Move *play, const Move *prev);
  * @param max_out Maximum number of moves to write to the `out` array.
  * @return The total number of legal moves found.
  */
-int moves_generate(const Card hand[], int hand_size,
-                   const Move *prev,
-                   Move out[], int max_out);
+int movesGenerate(const Card hand[], int hand_size, const Move* prev, Move out[], int max_out);
 
 /**
  * @brief Returns a human-readable string for a MoveType.
  * @param type The MoveType enum value.
  * @return A constant string describing the move type.
  */
-const char *moves_type_name(MoveType type);
+const char* movesTypeName(MoveType type);
 
 /**
  * @brief Sorts the cards within a Move structure by rank in ascending order.
  * @param m Pointer to the Move to be sorted.
  */
-void moves_sort(Move *m);
+void movesSort(Move* m);
 
 #endif // LIBDOUDIZHU_MOVES_H

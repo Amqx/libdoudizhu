@@ -8,18 +8,17 @@
 #include "selfplay.h"
 #include "test_framework.h"
 
-static void test_match_stats_sum_correctly(void) {
-    begin_suite("selfplay: match stats sum to completed games");
+static void testMatchStatsSumCorrectly(void) {
+    beginSuite("selfplay: match stats sum to completed games");
 
-    const BotWeights *weights[GAME_NUM_PLAYERS] = {
-        bot_default_weights(), bot_default_weights(), bot_default_weights()
-    };
+    const BotWeights* weights[GAME_NUM_PLAYERS] = {botDefaultWeights(), botDefaultWeights(), botDefaultWeights()};
     SelfPlayStats stats;
     int seat_sum = 0;
 
-    selfplay_run_matches(12, 1234u, weights, &stats);
+    selfplayRunMatches(12, 1234u, weights, &stats);
 
-    for (int p = 0; p < GAME_NUM_PLAYERS; p++) seat_sum += stats.seat_wins[p];
+    for (int p = 0; p < GAME_NUM_PLAYERS; p++)
+        seat_sum += stats.seat_wins[p];
 
     EXPECT_EQ(stats.requested_games, 12, "requested game count recorded");
     EXPECT_EQ(stats.completed_games, 12, "requested number of games completed");
@@ -28,34 +27,34 @@ static void test_match_stats_sum_correctly(void) {
               "team outcome split sums to completed games");
 }
 
-static void test_tuner_respects_bounds(void) {
-    begin_suite("selfplay: tuner mutates within per-field bounds");
+static void testTunerRespectsBounds(void) {
+    beginSuite("selfplay: tuner mutates within per-field bounds");
 
     SelfPlayTuneConfig cfg = {
-        .generations = 8,
-        .games_per_generation = 6,
-        .initial_step = 20,
-        .seed = 99u,
+            .generations = 8,
+            .games_per_generation = 6,
+            .initial_step = 20,
+            .seed = 99u,
     };
     SelfPlayTuneResult result;
-    const int count = bot_weights_count();
+    const int count = botWeightsCount();
 
-    selfplay_tune(bot_default_weights(), &cfg, &result);
+    selfplayTune(botDefaultWeights(), &cfg, &result);
 
     EXPECT_EQ(result.generations_attempted, 8, "generation counter matches config");
     EXPECT(result.final_arena.completed_games == cfg.games_per_generation,
            "final arena produced requested number of completed games");
 
     for (int i = 0; i < count; i++) {
-        const int value = bot_weights_get(&result.best_weights, i);
-        EXPECT(value >= bot_weights_min(i) && value <= bot_weights_max(i),
+        const int value = botWeightsGet(&result.best_weights, i);
+        EXPECT(value >= botWeightsMin(i) && value <= botWeightsMax(i),
                "all tuned weights remain within per-field bounds");
     }
 }
 
 int main(void) {
-    test_match_stats_sum_correctly();
-    test_tuner_respects_bounds();
+    testMatchStatsSumCorrectly();
+    testTunerRespectsBounds();
     PRINT_RESULTS();
     RETURN_TEST_RESULT();
 }

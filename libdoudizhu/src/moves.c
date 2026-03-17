@@ -5,28 +5,28 @@
  * @date 08-Mar-26
  */
 
-#include <stdlib.h>         // Since stdlib is already being used from game.c, we might as well use it for qsort too
-#include "utils.h"
 #include "moves.h"
+#include <stdlib.h> // Since stdlib is already being used from game.c, we might as well use it for qsort too
+#include "utils.h"
 
 // Rank definitions
-#define RANK_3              0
-#define RANK_10             7
-#define RANK_A              11
-#define RANK_2              12
-#define RANK_SMALL_JOKER    13
-#define RANK_BIG_JOKER      14
-#define RANK_MAX_STRAIGHT   RANK_A
+#define RANK_3 0
+#define RANK_10 7
+#define RANK_A 11
+#define RANK_2 12
+#define RANK_SMALL_JOKER 13
+#define RANK_BIG_JOKER 14
+#define RANK_MAX_STRAIGHT RANK_A
 
 // Internal card comparison for qsort
-static int cmp_card_rank(const void *a, const void *b) {
-    const int ra = CARD_RANK(*(const Card *) a);
-    const int rb = CARD_RANK(*(const Card *) b);
+static int cmpCardRank(const void* a, const void* b) {
+    const int ra = CARD_RANK(*(const Card*) a);
+    const int rb = CARD_RANK(*(const Card*) b);
     return ra - rb;
 }
 
-void moves_count_ranks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
-    lddz_memset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
+void movesCountRanks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
+    lddzMemset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
     for (int i = 0; i < n; i++) {
         cnt[CARD_RANK(cards[i])]++;
     }
@@ -37,17 +37,18 @@ void moves_count_ranks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]
  * @param cnt Rank count array source
  * @param dst Normal card hand to populate
  */
-static void fill_cards_from_counts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MAX_CARDS]) {
+static void fillCardsFromCounts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MAX_CARDS]) {
     int idx = 0;
     // We iterate 0-53 to find matching cards in standard deck order
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         int needed = cnt[r];
-        if (needed <= 0) continue;
+        if (needed <= 0)
+            continue;
 
         // Standard ranks (3 to 2) have 4 cards each
         if (r < 13) {
             for (int suit = 0; suit < 4 && needed > 0; suit++) {
-                dst[idx++] = (Card)(r * 4 + suit);
+                dst[idx++] = (Card) (r * 4 + suit);
                 needed--;
             }
         } else if (r == RANK_SMALL_JOKER) {
@@ -66,8 +67,9 @@ static void fill_cards_from_counts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 1) return 0;
+static int trySingle(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 1)
+        return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 1) {
             m->type = MOVE_SINGLE;
@@ -86,8 +88,9 @@ static int try_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 2) return 0;
+static int tryPair(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 2)
+        return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 2) {
             m->type = MOVE_PAIR;
@@ -106,8 +109,9 @@ static int try_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 3) return 0;
+static int tryTriple(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 3)
+        return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 3) {
             m->type = MOVE_TRIPLE;
@@ -126,8 +130,9 @@ static int try_triple(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_bomb(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 4) return 0;
+static int tryBomb(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 4)
+        return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 4) {
             m->type = MOVE_BOMB;
@@ -146,8 +151,9 @@ static int try_bomb(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_rocket(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 2) return 0;
+static int tryRocket(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 2)
+        return 0;
     if (cnt[RANK_SMALL_JOKER] == 1 && cnt[RANK_BIG_JOKER] == 1) {
         m->type = MOVE_ROCKET;
         m->rank = RANK_BIG_JOKER;
@@ -164,8 +170,9 @@ static int try_rocket(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) 
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple_single(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 4) return 0;
+static int tryTripleSingle(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 4)
+        return 0;
     int triple_rank = -1;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 3) {
@@ -173,13 +180,16 @@ static int try_triple_single(const int cnt[RANK_COUNT_SIZE], const int total, Mo
             break;
         }
     }
-    if (triple_rank < 0) return 0;
+    if (triple_rank < 0)
+        return 0;
     int remaining = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (r == triple_rank) continue;
+        if (r == triple_rank)
+            continue;
         remaining += cnt[r];
     }
-    if (remaining != 1) return 0;
+    if (remaining != 1)
+        return 0;
     m->type = MOVE_TRIPLE_SINGLE;
     m->rank = triple_rank;
     m->length = 1;
@@ -193,8 +203,9 @@ static int try_triple_single(const int cnt[RANK_COUNT_SIZE], const int total, Mo
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 5) return 0;
+static int tryTriplePair(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 5)
+        return 0;
     int triple_rank = -1;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 3) {
@@ -202,9 +213,11 @@ static int try_triple_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move
             break;
         }
     }
-    if (triple_rank < 0) return 0;
+    if (triple_rank < 0)
+        return 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (r == triple_rank) continue;
+        if (r == triple_rank)
+            continue;
         if (cnt[r] == 2) {
             m->type = MOVE_TRIPLE_PAIR;
             m->rank = triple_rank;
@@ -222,15 +235,18 @@ static int try_triple_pair(const int cnt[RANK_COUNT_SIZE], const int total, Move
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total < 5) return 0;
+static int tryStraight(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total < 5)
+        return 0;
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] > 0) return 0;
+        if (cnt[r] > 0)
+            return 0;
     }
     int start = -1, length = 0;
     for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
         if (cnt[r] == 1) {
-            if (start < 0) start = r;
+            if (start < 0)
+                start = r;
             length++;
         } else if (cnt[r] == 0 && start >= 0) {
             break;
@@ -238,7 +254,8 @@ static int try_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m
             return 0;
         }
     }
-    if (length != total || length < 5) return 0;
+    if (length != total || length < 5)
+        return 0;
     m->type = MOVE_STRAIGHT;
     m->rank = start;
     m->length = length;
@@ -252,15 +269,18 @@ static int try_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_pair_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total < 6 || total % 2 != 0) return 0;
+static int tryPairStraight(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total < 6 || total % 2 != 0)
+        return 0;
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] > 0) return 0;
+        if (cnt[r] > 0)
+            return 0;
     }
     int start = -1, length = 0;
     for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
         if (cnt[r] == 2) {
-            if (start < 0) start = r;
+            if (start < 0)
+                start = r;
             length++;
         } else if (cnt[r] == 0 && start >= 0) {
             break;
@@ -268,7 +288,8 @@ static int try_pair_straight(const int cnt[RANK_COUNT_SIZE], const int total, Mo
             return 0;
         }
     }
-    if (length < 3 || length * 2 != total) return 0;
+    if (length < 3 || length * 2 != total)
+        return 0;
     m->type = MOVE_PAIR_STRAIGHT;
     m->rank = start;
     m->length = length;
@@ -281,20 +302,23 @@ static int try_pair_straight(const int cnt[RANK_COUNT_SIZE], const int total, Mo
  * @param out_start Starting position of the plane
  * @param out_len Length of the plane
  */
-static int find_triple_run(const int cnt[RANK_COUNT_SIZE], int *out_start, int *out_len) {
+static int findTripleRun(const int cnt[RANK_COUNT_SIZE], int* out_start, int* out_len) {
     for (int r = RANK_2; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] > 0) return 0;
+        if (cnt[r] > 0)
+            return 0;
     }
     int start = -1, length = 0;
     for (int r = 0; r <= RANK_MAX_STRAIGHT; r++) {
         if (cnt[r] > 0) {
-            if (start < 0) start = r;
+            if (start < 0)
+                start = r;
             length++;
         } else if (start >= 0) {
             break;
         }
     }
-    if (length < 2) return 0;
+    if (length < 2)
+        return 0;
     *out_start = start;
     *out_len = length;
     return 1;
@@ -307,16 +331,20 @@ static int find_triple_run(const int cnt[RANK_COUNT_SIZE], int *out_start, int *
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple_straight(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total < 6 || total % 3 != 0) return 0;
+static int tryTripleStraight(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total < 6 || total % 3 != 0)
+        return 0;
     int triple_cnt[RANK_COUNT_SIZE] = {0};
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] % 3 != 0) return 0;
+        if (cnt[r] % 3 != 0)
+            return 0;
         triple_cnt[r] = cnt[r] / 3;
     }
     int start, len;
-    if (!find_triple_run(triple_cnt, &start, &len)) return 0;
-    if (len * 3 != total) return 0;
+    if (!findTripleRun(triple_cnt, &start, &len))
+        return 0;
+    if (len * 3 != total)
+        return 0;
     m->type = MOVE_TRIPLE_STRAIGHT;
     m->rank = start;
     m->length = len;
@@ -330,24 +358,28 @@ static int try_triple_straight(const int cnt[RANK_COUNT_SIZE], const int total, 
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple_straight_singles(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total < 8 || total % 4 != 0) return 0;
+static int tryTripleStraightSingles(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total < 8 || total % 4 != 0)
+        return 0;
     const int n = total / 4;
     int tmp[RANK_COUNT_SIZE];
-    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    lddzMemcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     int triple_cnt[RANK_COUNT_SIZE] = {0};
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         triple_cnt[r] = tmp[r] / 3;
         tmp[r] = tmp[r] % 3;
     }
     int start, len;
-    if (!find_triple_run(triple_cnt, &start, &len) || len != n) return 0;
+    if (!findTripleRun(triple_cnt, &start, &len) || len != n)
+        return 0;
     int singles = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (tmp[r] > 1) return 0;
+        if (tmp[r] > 1)
+            return 0;
         singles += tmp[r];
     }
-    if (singles != n) return 0;
+    if (singles != n)
+        return 0;
     m->type = MOVE_TRIPLE_STRAIGHT_SINGLES;
     m->rank = start;
     m->length = len;
@@ -361,23 +393,29 @@ static int try_triple_straight_singles(const int cnt[RANK_COUNT_SIZE], const int
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_triple_straight_pairs(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total < 10 || total % 5 != 0) return 0;
+static int tryTripleStraightPairs(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total < 10 || total % 5 != 0)
+        return 0;
     const int n = total / 5;
     int tmp[RANK_COUNT_SIZE];
-    lddz_memcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
+    lddzMemcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     int triple_cnt[RANK_COUNT_SIZE] = {0};
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         triple_cnt[r] = tmp[r] / 3;
         tmp[r] = tmp[r] % 3;
     }
     int start, len;
-    if (!find_triple_run(triple_cnt, &start, &len) || len != n) return 0;
+    if (!findTripleRun(triple_cnt, &start, &len) || len != n)
+        return 0;
     int pairs = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (tmp[r] == 2) { pairs++; } else if (tmp[r] != 0) return 0;
+        if (tmp[r] == 2) {
+            pairs++;
+        } else if (tmp[r] != 0)
+            return 0;
     }
-    if (pairs != n) return 0;
+    if (pairs != n)
+        return 0;
     m->type = MOVE_TRIPLE_STRAIGHT_PAIRS;
     m->rank = start;
     m->length = len;
@@ -391,8 +429,9 @@ static int try_triple_straight_pairs(const int cnt[RANK_COUNT_SIZE], const int t
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_four_two_singles(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 6) return 0;
+static int tryFourTwoSingles(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 6)
+        return 0;
     int quad_rank = -1;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 4) {
@@ -400,14 +439,18 @@ static int try_four_two_singles(const int cnt[RANK_COUNT_SIZE], const int total,
             break;
         }
     }
-    if (quad_rank < 0) return 0;
+    if (quad_rank < 0)
+        return 0;
     int remaining = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (r == quad_rank) continue;
-        if (cnt[r] > 1) return 0;
+        if (r == quad_rank)
+            continue;
+        if (cnt[r] > 1)
+            return 0;
         remaining += cnt[r];
     }
-    if (remaining != 2) return 0;
+    if (remaining != 2)
+        return 0;
     m->type = MOVE_FOUR_TWO_SINGLES;
     m->rank = quad_rank;
     m->length = 1;
@@ -421,8 +464,9 @@ static int try_four_two_singles(const int cnt[RANK_COUNT_SIZE], const int total,
  * @param m Move to classify into
  * @return 1 if successful
  */
-static int try_four_two_pairs(const int cnt[RANK_COUNT_SIZE], const int total, Move *m) {
-    if (total != 8) return 0;
+static int tryFourTwoPairs(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
+    if (total != 8)
+        return 0;
     int quad_rank = -1;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] == 4) {
@@ -430,14 +474,19 @@ static int try_four_two_pairs(const int cnt[RANK_COUNT_SIZE], const int total, M
             break;
         }
     }
-    if (quad_rank < 0) return 0;
+    if (quad_rank < 0)
+        return 0;
     int pairs = 0;
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (r == quad_rank) continue;
-        if (cnt[r] == 2) pairs++;
-        else if (cnt[r] != 0) return 0;
+        if (r == quad_rank)
+            continue;
+        if (cnt[r] == 2)
+            pairs++;
+        else if (cnt[r] != 0)
+            return 0;
     }
-    if (pairs != 2) return 0;
+    if (pairs != 2)
+        return 0;
     m->type = MOVE_FOUR_TWO_PAIRS;
     m->rank = quad_rank;
     m->length = 1;
@@ -445,7 +494,7 @@ static int try_four_two_pairs(const int cnt[RANK_COUNT_SIZE], const int total, M
 }
 
 /* --- Public Classification Functions --- */
-Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], const int total) {
+Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], const int total) {
     Move m = {0};
     m.type = MOVE_INVALID;
     m.count = total;
@@ -455,49 +504,46 @@ Move moves_classify_counts(const int cnt[RANK_COUNT_SIZE], const int total) {
         return m;
     }
 
-    if (try_rocket(cnt, total, &m) ||
-        try_bomb(cnt, total, &m) ||
-        try_single(cnt, total, &m) ||
-        try_pair(cnt, total, &m) ||
-        try_triple(cnt, total, &m) ||
-        try_triple_single(cnt, total, &m) ||
-        try_triple_pair(cnt, total, &m) ||
-        try_four_two_singles(cnt, total, &m) ||
-        try_four_two_pairs(cnt, total, &m) ||
-        try_straight(cnt, total, &m) ||
-        try_pair_straight(cnt, total, &m) ||
-        try_triple_straight(cnt, total, &m) ||
-        try_triple_straight_singles(cnt, total, &m) ||
-        try_triple_straight_pairs(cnt, total, &m)) {
+    if (tryRocket(cnt, total, &m) || tryBomb(cnt, total, &m) || trySingle(cnt, total, &m) || tryPair(cnt, total, &m) ||
+        tryTriple(cnt, total, &m) || tryTripleSingle(cnt, total, &m) || tryTriplePair(cnt, total, &m) ||
+        tryFourTwoSingles(cnt, total, &m) || tryFourTwoPairs(cnt, total, &m) || tryStraight(cnt, total, &m) ||
+        tryPairStraight(cnt, total, &m) || tryTripleStraight(cnt, total, &m) ||
+        tryTripleStraightSingles(cnt, total, &m) || tryTripleStraightPairs(cnt, total, &m)) {
         m.count = total;
     }
 
     return m;
 }
 
-Move moves_classify(const Card cards[], const int n) {
+Move movesClassify(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(cards, n, cnt);
-    Move m = moves_classify_counts(cnt, n);
+    movesCountRanks(cards, n, cnt);
+    Move m = movesClassifyCounts(cnt, n);
     if (n <= MOVE_MAX_CARDS) {
-        lddz_memcpy(m.cards, cards, n * sizeof(Card));
+        lddzMemcpy(m.cards, cards, n * sizeof(Card));
     }
     m.count = n;
     return m;
 }
 
 /* --- Comparison Logic --- */
-int moves_beats(const Move *play, const Move *prev) {
-    if (play->type == MOVE_PASS || play->type == MOVE_INVALID) return 0;
-    if (prev->type == MOVE_PASS) return 1;
-    if (play->type == MOVE_ROCKET) return (prev->type != MOVE_ROCKET);
+int movesBeats(const Move* play, const Move* prev) {
+    if (play->type == MOVE_PASS || play->type == MOVE_INVALID)
+        return 0;
+    if (prev->type == MOVE_PASS)
+        return 1;
+    if (play->type == MOVE_ROCKET)
+        return (prev->type != MOVE_ROCKET);
 
     if (play->type == MOVE_BOMB) {
-        if (prev->type == MOVE_ROCKET) return 0;
-        if (prev->type == MOVE_BOMB) return play->rank > prev->rank;
+        if (prev->type == MOVE_ROCKET)
+            return 0;
+        if (prev->type == MOVE_BOMB)
+            return play->rank > prev->rank;
         return 1;
     }
-    if (prev->type == MOVE_ROCKET || prev->type == MOVE_BOMB) return 0;
+    if (prev->type == MOVE_ROCKET || prev->type == MOVE_BOMB)
+        return 0;
 
     if (play->type != prev->type || play->length != prev->length || play->count != prev->count) {
         return 0;
@@ -513,7 +559,7 @@ int moves_beats(const Move *play, const Move *prev) {
  * @param k Length of the array
  * @param ctx Context pointer
  */
-typedef void (*kicker_cb)(const int chosen[], int k, const void *ctx);
+typedef void (*kicker_cb)(const int chosen[], int k, const void* ctx);
 
 /**
  * Chooses all available kickers
@@ -526,9 +572,8 @@ typedef void (*kicker_cb)(const int chosen[], int k, const void *ctx);
  * @param cb Callback function for choosing kickers
  * @param ctx Context pointer
  */
-static void choose_kickers(const int cnt[RANK_COUNT_SIZE], const int need,
-                           const int k, int chosen[], const int depth, const int start,
-                           const kicker_cb cb, void *ctx) {
+static void chooseKickers(const int cnt[RANK_COUNT_SIZE], const int need, const int k, int chosen[], const int depth,
+                          const int start, const kicker_cb cb, void* ctx) {
     if (depth == k) {
         cb(chosen, k, ctx);
         return;
@@ -536,7 +581,7 @@ static void choose_kickers(const int cnt[RANK_COUNT_SIZE], const int need,
     for (int r = start; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] >= need) {
             chosen[depth] = r;
-            choose_kickers(cnt, need, k, chosen, depth + 1, r + 1, cb, ctx);
+            chooseKickers(cnt, need, k, chosen, depth + 1, r + 1, cb, ctx);
         }
     }
 }
@@ -550,10 +595,10 @@ typedef struct {
     int plane_len;
     int kicker_need;
     MoveType type;
-    Move *out;
+    Move* out;
     int max_out;
-    int *n;
-    const int *cnt;
+    int* n;
+    const int* cnt;
 } KickerCtx;
 
 /**
@@ -562,8 +607,8 @@ typedef struct {
  * @param k Number of kickers to take
  * @param ctx_ Context pointer
  */
-static void on_kickers_chosen(const int chosen[], const int k, const void *ctx_) {
-    const KickerCtx *ctx = ctx_;
+static void onKickersChosen(const int chosen[], const int k, const void* ctx_) {
+    const KickerCtx* ctx = ctx_;
     int tmp[RANK_COUNT_SIZE] = {0};
     for (int r = ctx->plane_start; r < ctx->plane_start + ctx->plane_len; r++)
         tmp[r] = 3;
@@ -576,8 +621,9 @@ static void on_kickers_chosen(const int chosen[], const int k, const void *ctx_)
     m.rank = ctx->plane_start;
     m.length = ctx->plane_len;
     m.count = total;
-    fill_cards_from_counts(tmp, m.cards);
-    if (*ctx->n < ctx->max_out) ctx->out[*ctx->n] = m;
+    fillCardsFromCounts(tmp, m.cards);
+    if (*ctx->n < ctx->max_out)
+        ctx->out[*ctx->n] = m;
     (*ctx->n)++;
 }
 
@@ -590,15 +636,17 @@ static void on_kickers_chosen(const int chosen[], const int k, const void *ctx_)
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_singles(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
+static void genSingles(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 1) continue;
+        if (cnt[r] < 1)
+            continue;
         if (prev->type == MOVE_PASS || (r > prev->rank)) {
             Move m = {MOVE_SINGLE, {0}, 1, r, 1};
             int tmp[RANK_COUNT_SIZE] = {0};
             tmp[r] = 1;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -612,15 +660,17 @@ static void gen_singles(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move o
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_pairs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
+static void genPairs(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int min_rank = (prev->type == MOVE_PAIR) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 2) continue;
+        if (cnt[r] < 2)
+            continue;
         Move m = {MOVE_PAIR, {0}, 2, r, 1};
         int tmp[RANK_COUNT_SIZE] = {0};
         tmp[r] = 2;
-        fill_cards_from_counts(tmp, m.cards);
-        if (*n < max_out) out[*n] = m;
+        fillCardsFromCounts(tmp, m.cards);
+        if (*n < max_out)
+            out[*n] = m;
         (*n)++;
     }
 }
@@ -633,15 +683,17 @@ static void gen_pairs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_triples(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
+static void genTriples(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int min_rank = (prev->type == MOVE_TRIPLE) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 3) continue;
+        if (cnt[r] < 3)
+            continue;
         Move m = {MOVE_TRIPLE, {0}, 3, r, 1};
         int tmp[RANK_COUNT_SIZE] = {0};
         tmp[r] = 3;
-        fill_cards_from_counts(tmp, m.cards);
-        if (*n < max_out) out[*n] = m;
+        fillCardsFromCounts(tmp, m.cards);
+        if (*n < max_out)
+            out[*n] = m;
         (*n)++;
     }
 }
@@ -654,15 +706,17 @@ static void gen_triples(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move o
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_bombs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
+static void genBombs(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int min_rank = (prev->type == MOVE_BOMB) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 4) continue;
+        if (cnt[r] < 4)
+            continue;
         Move m = {MOVE_BOMB, {0}, 4, r, 1};
         int tmp[RANK_COUNT_SIZE] = {0};
         tmp[r] = 4;
-        fill_cards_from_counts(tmp, m.cards);
-        if (*n < max_out) out[*n] = m;
+        fillCardsFromCounts(tmp, m.cards);
+        if (*n < max_out)
+            out[*n] = m;
         (*n)++;
     }
 }
@@ -675,15 +729,17 @@ static void gen_bombs(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_rocket(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
-    if (prev->type == MOVE_ROCKET) return;
+static void genRocket(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
+    if (prev->type == MOVE_ROCKET)
+        return;
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1) {
         Move m = {MOVE_ROCKET, {0}, 2, RANK_BIG_JOKER, 1};
         int tmp[RANK_COUNT_SIZE] = {0};
         tmp[RANK_SMALL_JOKER] = 1;
         tmp[RANK_BIG_JOKER] = 1;
-        fill_cards_from_counts(tmp, m.cards);
-        if (*n < max_out) out[*n] = m;
+        fillCardsFromCounts(tmp, m.cards);
+        if (*n < max_out)
+            out[*n] = m;
         (*n)++;
     }
 }
@@ -696,7 +752,7 @@ static void gen_rocket(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move ou
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out, int *n) {
+static void genStraights(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int req_len = (prev->type == MOVE_STRAIGHT) ? prev->length : 5;
     const int min_rank = (prev->type == MOVE_STRAIGHT) ? prev->rank : 0;
     const int len_max = (prev->type == MOVE_STRAIGHT) ? req_len : RANK_MAX_STRAIGHT + 1;
@@ -710,12 +766,15 @@ static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move
                     ok = 0;
                     break;
                 }
-            if (!ok) continue;
+            if (!ok)
+                continue;
             Move m = {MOVE_STRAIGHT, {0}, len, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
-            for (int r = s; r < s + len; r++) tmp[r] = 1;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            for (int r = s; r < s + len; r++)
+                tmp[r] = 1;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -729,8 +788,7 @@ static void gen_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
-                               int *n) {
+static void genPairStraights(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int req_len = (prev->type == MOVE_PAIR_STRAIGHT) ? prev->length : 3;
     const int min_rank = (prev->type == MOVE_PAIR_STRAIGHT) ? prev->rank : 0;
     const int len_max = (prev->type == MOVE_PAIR_STRAIGHT) ? req_len : RANK_MAX_STRAIGHT + 1;
@@ -744,12 +802,15 @@ static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev,
                     ok = 0;
                     break;
                 }
-            if (!ok) continue;
+            if (!ok)
+                continue;
             Move m = {MOVE_PAIR_STRAIGHT, {0}, len * 2, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
-            for (int r = s; r < s + len; r++) tmp[r] = 2;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            for (int r = s; r < s + len; r++)
+                tmp[r] = 2;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -763,8 +824,8 @@ static void gen_pair_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev,
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
-                                 int *n) {
+static void genTripleStraights(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out,
+                               int* n) {
     const int req_len = (prev->type == MOVE_TRIPLE_STRAIGHT) ? prev->length : 2;
     const int min_rank = (prev->type == MOVE_TRIPLE_STRAIGHT) ? prev->rank : 0;
     const int len_max = (prev->type == MOVE_TRIPLE_STRAIGHT) ? req_len : RANK_MAX_STRAIGHT + 1;
@@ -778,12 +839,15 @@ static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *pre
                     ok = 0;
                     break;
                 }
-            if (!ok) continue;
+            if (!ok)
+                continue;
             Move m = {MOVE_TRIPLE_STRAIGHT, {0}, len * 3, s, len};
             int tmp[RANK_COUNT_SIZE] = {0};
-            for (int r = s; r < s + len; r++) tmp[r] = 3;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            for (int r = s; r < s + len; r++)
+                tmp[r] = 3;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -799,8 +863,8 @@ static void gen_triple_straights(const int cnt[RANK_COUNT_SIZE], const Move *pre
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, const MoveType type,
-                              const int kicker_need, Move out[], const int max_out, int *n) {
+static void genTripleKicker(const int cnt[RANK_COUNT_SIZE], const Move* prev, const MoveType type,
+                            const int kicker_need, Move out[], const int max_out, int* n) {
     const int req_len = (prev->type == type) ? prev->length : 2;
     const int min_rank = (prev->type == type) ? prev->rank : 0;
     const int max_len = RANK_MAX_STRAIGHT;
@@ -814,13 +878,15 @@ static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, 
                     ok = 0;
                     break;
                 }
-            if (!ok) continue;
+            if (!ok)
+                continue;
             int rem[RANK_COUNT_SIZE];
-            lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
-            for (int r = s; r < s + len; r++) rem[r] = 0;
+            lddzMemcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+            for (int r = s; r < s + len; r++)
+                rem[r] = 0;
             KickerCtx ctx = {s, len, kicker_need, type, out, max_out, n, cnt};
             int chosen[20];
-            choose_kickers(rem, kicker_need, len, chosen, 0, 0, on_kickers_chosen, &ctx);
+            chooseKickers(rem, kicker_need, len, chosen, 0, 0, onKickersChosen, &ctx);
         }
     }
 }
@@ -835,25 +901,29 @@ static void gen_triple_kicker(const int cnt[RANK_COUNT_SIZE], const Move *prev, 
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_four_two(const int cnt[RANK_COUNT_SIZE], const Move *prev, const MoveType type, const int kicker_need,
-                         Move out[], const int max_out, int *n) {
+static void genFourTwo(const int cnt[RANK_COUNT_SIZE], const Move* prev, const MoveType type, const int kicker_need,
+                       Move out[], const int max_out, int* n) {
     const int min_rank = (prev->type == type) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 4) continue;
+        if (cnt[r] < 4)
+            continue;
         int rem[RANK_COUNT_SIZE];
-        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddzMemcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 4;
         for (int a = 0; a < RANK_COUNT_SIZE; a++) {
-            if (rem[a] < kicker_need) continue;
+            if (rem[a] < kicker_need)
+                continue;
             for (int b = a + 1; b < RANK_COUNT_SIZE; b++) {
-                if (rem[b] < kicker_need) continue;
+                if (rem[b] < kicker_need)
+                    continue;
                 Move m = {type, {0}, 4 + 2 * kicker_need, r, 1};
                 int tmp[RANK_COUNT_SIZE] = {0};
                 tmp[r] = 4;
                 tmp[a] += kicker_need;
                 tmp[b] += kicker_need;
-                fill_cards_from_counts(tmp, m.cards);
-                if (*n < max_out) out[*n] = m;
+                fillCardsFromCounts(tmp, m.cards);
+                if (*n < max_out)
+                    out[*n] = m;
                 (*n)++;
             }
         }
@@ -868,23 +938,27 @@ static void gen_four_two(const int cnt[RANK_COUNT_SIZE], const Move *prev, const
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
-                                   int *n) {
+static void genTripleSingleMove(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out,
+                                int* n) {
     const int min_rank = (prev->type == MOVE_TRIPLE_SINGLE) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 3) continue;
+        if (cnt[r] < 3)
+            continue;
         int rem[RANK_COUNT_SIZE];
-        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddzMemcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
-            if (k == r) continue;
-            if (rem[k] < 1) continue;
+            if (k == r)
+                continue;
+            if (rem[k] < 1)
+                continue;
             Move m = {MOVE_TRIPLE_SINGLE, {0}, 4, r, 1};
             int tmp[RANK_COUNT_SIZE] = {0};
             tmp[r] = 3;
             tmp[k] += 1;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -898,23 +972,26 @@ static void gen_triple_single_move(const int cnt[RANK_COUNT_SIZE], const Move *p
  * @param max_out Max number of moves to generate
  * @param n Number of moves currently
  */
-static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *prev, Move out[], const int max_out,
-                                 int *n) {
+static void genTriplePairMove(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[], const int max_out, int* n) {
     const int min_rank = (prev->type == MOVE_TRIPLE_PAIR) ? prev->rank + 1 : 0;
     for (int r = min_rank; r < RANK_COUNT_SIZE; r++) {
-        if (cnt[r] < 3) continue;
+        if (cnt[r] < 3)
+            continue;
         int rem[RANK_COUNT_SIZE];
-        lddz_memcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
+        lddzMemcpy(rem, cnt, RANK_COUNT_SIZE * sizeof(int));
         rem[r] -= 3;
         for (int k = 0; k < RANK_COUNT_SIZE; k++) {
-            if (k == r) continue;
-            if (rem[k] < 2) continue;
+            if (k == r)
+                continue;
+            if (rem[k] < 2)
+                continue;
             Move m = {MOVE_TRIPLE_PAIR, {0}, 5, r, 1};
             int tmp[RANK_COUNT_SIZE] = {0};
             tmp[r] = 3;
             tmp[k] += 2;
-            fill_cards_from_counts(tmp, m.cards);
-            if (*n < max_out) out[*n] = m;
+            fillCardsFromCounts(tmp, m.cards);
+            if (*n < max_out)
+                out[*n] = m;
             (*n)++;
         }
     }
@@ -928,83 +1005,111 @@ static void gen_triple_pair_move(const int cnt[RANK_COUNT_SIZE], const Move *pre
  * @param out Out array for moves
  * @param max_out Max number of moves to generate
  */
-int moves_generate(const Card hand[], const int hand_size, const Move *prev, Move out[], const int max_out) {
+int movesGenerate(const Card hand[], const int hand_size, const Move* prev, Move out[], const int max_out) {
     int cnt[RANK_COUNT_SIZE];
-    moves_count_ranks(hand, hand_size, cnt);
+    movesCountRanks(hand, hand_size, cnt);
     int n = 0;
 
-    gen_bombs(cnt, prev, out, max_out, &n);
-    gen_rocket(cnt, prev, out, max_out, &n);
+    genBombs(cnt, prev, out, max_out, &n);
+    genRocket(cnt, prev, out, max_out, &n);
 
-    if (prev->type == MOVE_BOMB || prev->type == MOVE_ROCKET) return n;
+    if (prev->type == MOVE_BOMB || prev->type == MOVE_ROCKET)
+        return n;
 
     switch (prev->type) {
         case MOVE_PASS:
-            gen_singles(cnt, prev, out, max_out, &n);
-            gen_pairs(cnt, prev, out, max_out, &n);
-            gen_triples(cnt, prev, out, max_out, &n);
-            gen_triple_single_move(cnt, prev, out, max_out, &n);
-            gen_triple_pair_move(cnt, prev, out, max_out, &n);
-            gen_straights(cnt, prev, out, max_out, &n);
-            gen_pair_straights(cnt, prev, out, max_out, &n);
-            gen_triple_straights(cnt, prev, out, max_out, &n);
-            gen_triple_kicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_SINGLES, 1, out, max_out, &n);
-            gen_triple_kicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_PAIRS, 2, out, max_out, &n);
-            gen_four_two(cnt, prev, MOVE_FOUR_TWO_SINGLES, 1, out, max_out, &n);
-            gen_four_two(cnt, prev, MOVE_FOUR_TWO_PAIRS, 2, out, max_out, &n);
+            genSingles(cnt, prev, out, max_out, &n);
+            genPairs(cnt, prev, out, max_out, &n);
+            genTriples(cnt, prev, out, max_out, &n);
+            genTripleSingleMove(cnt, prev, out, max_out, &n);
+            genTriplePairMove(cnt, prev, out, max_out, &n);
+            genStraights(cnt, prev, out, max_out, &n);
+            genPairStraights(cnt, prev, out, max_out, &n);
+            genTripleStraights(cnt, prev, out, max_out, &n);
+            genTripleKicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_SINGLES, 1, out, max_out, &n);
+            genTripleKicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_PAIRS, 2, out, max_out, &n);
+            genFourTwo(cnt, prev, MOVE_FOUR_TWO_SINGLES, 1, out, max_out, &n);
+            genFourTwo(cnt, prev, MOVE_FOUR_TWO_PAIRS, 2, out, max_out, &n);
             break;
-        case MOVE_SINGLE: gen_singles(cnt, prev, out, max_out, &n);
+        case MOVE_SINGLE:
+            genSingles(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_PAIR: gen_pairs(cnt, prev, out, max_out, &n);
+        case MOVE_PAIR:
+            genPairs(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_TRIPLE: gen_triples(cnt, prev, out, max_out, &n);
+        case MOVE_TRIPLE:
+            genTriples(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_TRIPLE_SINGLE: gen_triple_single_move(cnt, prev, out, max_out, &n);
+        case MOVE_TRIPLE_SINGLE:
+            genTripleSingleMove(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_TRIPLE_PAIR: gen_triple_pair_move(cnt, prev, out, max_out, &n);
+        case MOVE_TRIPLE_PAIR:
+            genTriplePairMove(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_STRAIGHT: gen_straights(cnt, prev, out, max_out, &n);
+        case MOVE_STRAIGHT:
+            genStraights(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_PAIR_STRAIGHT: gen_pair_straights(cnt, prev, out, max_out, &n);
+        case MOVE_PAIR_STRAIGHT:
+            genPairStraights(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_TRIPLE_STRAIGHT: gen_triple_straights(cnt, prev, out, max_out, &n);
+        case MOVE_TRIPLE_STRAIGHT:
+            genTripleStraights(cnt, prev, out, max_out, &n);
             break;
-        case MOVE_TRIPLE_STRAIGHT_SINGLES: gen_triple_kicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_SINGLES, 1, out, max_out,
-                                                             &n);
+        case MOVE_TRIPLE_STRAIGHT_SINGLES:
+            genTripleKicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_SINGLES, 1, out, max_out, &n);
             break;
-        case MOVE_TRIPLE_STRAIGHT_PAIRS: gen_triple_kicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_PAIRS, 2, out, max_out, &n);
+        case MOVE_TRIPLE_STRAIGHT_PAIRS:
+            genTripleKicker(cnt, prev, MOVE_TRIPLE_STRAIGHT_PAIRS, 2, out, max_out, &n);
             break;
-        case MOVE_FOUR_TWO_SINGLES: gen_four_two(cnt, prev, MOVE_FOUR_TWO_SINGLES, 1, out, max_out, &n);
+        case MOVE_FOUR_TWO_SINGLES:
+            genFourTwo(cnt, prev, MOVE_FOUR_TWO_SINGLES, 1, out, max_out, &n);
             break;
-        case MOVE_FOUR_TWO_PAIRS: gen_four_two(cnt, prev, MOVE_FOUR_TWO_PAIRS, 2, out, max_out, &n);
+        case MOVE_FOUR_TWO_PAIRS:
+            genFourTwo(cnt, prev, MOVE_FOUR_TWO_PAIRS, 2, out, max_out, &n);
             break;
-        default: break;
+        default:
+            break;
     }
     return n;
 }
 
-const char *moves_type_name(const MoveType type) {
+const char* movesTypeName(const MoveType type) {
     switch (type) {
-        case MOVE_PASS: return "Pass";
-        case MOVE_SINGLE: return "Single";
-        case MOVE_PAIR: return "Pair";
-        case MOVE_TRIPLE: return "Triple";
-        case MOVE_TRIPLE_SINGLE: return "Triple+Single";
-        case MOVE_TRIPLE_PAIR: return "Triple+Pair";
-        case MOVE_STRAIGHT: return "Straight";
-        case MOVE_PAIR_STRAIGHT: return "Pair Straight";
-        case MOVE_TRIPLE_STRAIGHT: return "Airplane";
-        case MOVE_TRIPLE_STRAIGHT_SINGLES: return "Airplane+Singles";
-        case MOVE_TRIPLE_STRAIGHT_PAIRS: return "Airplane+Pairs";
-        case MOVE_FOUR_TWO_SINGLES: return "Four+Two Singles";
-        case MOVE_FOUR_TWO_PAIRS: return "Four+Two Pairs";
-        case MOVE_BOMB: return "Bomb";
-        case MOVE_ROCKET: return "Rocket";
-        case MOVE_INVALID: return "Invalid";
-        default: return "Unknown";
+        case MOVE_PASS:
+            return "Pass";
+        case MOVE_SINGLE:
+            return "Single";
+        case MOVE_PAIR:
+            return "Pair";
+        case MOVE_TRIPLE:
+            return "Triple";
+        case MOVE_TRIPLE_SINGLE:
+            return "Triple+Single";
+        case MOVE_TRIPLE_PAIR:
+            return "Triple+Pair";
+        case MOVE_STRAIGHT:
+            return "Straight";
+        case MOVE_PAIR_STRAIGHT:
+            return "Pair Straight";
+        case MOVE_TRIPLE_STRAIGHT:
+            return "Airplane";
+        case MOVE_TRIPLE_STRAIGHT_SINGLES:
+            return "Airplane+Singles";
+        case MOVE_TRIPLE_STRAIGHT_PAIRS:
+            return "Airplane+Pairs";
+        case MOVE_FOUR_TWO_SINGLES:
+            return "Four+Two Singles";
+        case MOVE_FOUR_TWO_PAIRS:
+            return "Four+Two Pairs";
+        case MOVE_BOMB:
+            return "Bomb";
+        case MOVE_ROCKET:
+            return "Rocket";
+        case MOVE_INVALID:
+            return "Invalid";
+        default:
+            return "Unknown";
     }
 }
 
-void moves_sort(Move *m) {
-    qsort(m->cards, m->count, sizeof(Card), cmp_card_rank);
-}
+void movesSort(Move* m) { qsort(m->cards, m->count, sizeof(Card), cmpCardRank); }

@@ -34,7 +34,7 @@ typedef struct {
     int games_per_generation; /**< Games used to score each candidate. */
     /**
      * Initial mutation size as a percentage (0–100) of each field's sensible
-     * range (from bot_weights_min / bot_weights_max).  Anneals linearly to 1%
+     * range (from botWeightsMin / botWeightsMax).  Anneals linearly to 1%
      * over the run.  A value of 20 means the first mutations move each field
      * by ≈20 % of its range, giving coarse exploration early and fine-tuning
      * late.  Because it is relative to per-field ranges, the same value works
@@ -64,7 +64,7 @@ typedef struct {
  * @param stats Stats object to reset.
  * @param requested_games Target number of games for the next run.
  */
-void selfplay_stats_reset(SelfPlayStats *stats, int requested_games);
+void selfplayStatsReset(SelfPlayStats* stats, int requested_games);
 
 /**
  * @brief Runs weighted bots against each other until num_games complete.
@@ -74,9 +74,8 @@ void selfplay_stats_reset(SelfPlayStats *stats, int requested_games);
  * @param stats_out Filled with aggregate results.
  * @details The starting bidder rotates by game index to reduce seat bias.
  */
-void selfplay_run_matches(int num_games, unsigned int base_seed,
-                          const BotWeights *per_player_weights[GAME_NUM_PLAYERS],
-                          SelfPlayStats *stats_out);
+void selfplayRunMatches(int num_games, unsigned int base_seed, const BotWeights* per_player_weights[GAME_NUM_PLAYERS],
+                        SelfPlayStats* stats_out);
 
 /**
  * @brief Tunes one BotWeights vector through slow self-play hill climbing.
@@ -87,7 +86,6 @@ void selfplay_run_matches(int num_games, unsigned int base_seed,
  *          against two incumbent/default opponents, rotates the candidate seat,
  *          and accepts only strictly better candidates.
  */
-void selfplay_tune(const BotWeights *initial_weights, const SelfPlayTuneConfig *cfg,
-                   SelfPlayTuneResult *result_out);
+void selfplayTune(const BotWeights* initial_weights, const SelfPlayTuneConfig* cfg, SelfPlayTuneResult* result_out);
 
 #endif // LIBDOUDIZHU_SELFPLAY_H
