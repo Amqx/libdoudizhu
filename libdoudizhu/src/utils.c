@@ -1,7 +1,7 @@
 /**
  * @file utils.c
  * @brief Implementation of util functions
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 17-Mar-26
  */
 

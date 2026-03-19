@@ -1,7 +1,7 @@
 /**
  * @file selfplay.h
  * @brief Self-play arena and weight tuning helpers for libdoudizhu bots.
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 09-Mar-26
  */
 

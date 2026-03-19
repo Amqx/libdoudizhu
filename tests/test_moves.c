@@ -1,6 +1,9 @@
-//
-// Created by Jonathan on 08-Mar-26.
-//
+/**
+ * @file test_moves.c
+ * @brief Tests for the moves module (valid and legal move detection/ generation)
+ * @author Peng Yang Deng (), Emma Le ()
+ * @date 08-Mar-26
+ */
 
 #include <string.h>
 #include "moves.h"

@@ -1,7 +1,7 @@
 /**
  * @file moves.h
  * @brief Move and card logic for libdoudizhu
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 08-Mar-26
  */
 

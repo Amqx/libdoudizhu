@@ -1,7 +1,7 @@
 /**
  * @file test_bot.c
  * @brief Tests for the bot module
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 08-Mar-26
  */
 

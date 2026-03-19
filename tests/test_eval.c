@@ -1,7 +1,7 @@
 /**
  * @file test_eval.c
  * @brief Tests for the eval module (hand evaluation utilities)
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 08-Mar-26
  */
 

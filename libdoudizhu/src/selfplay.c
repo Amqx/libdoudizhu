@@ -1,7 +1,7 @@
 /**
  * @file selfplay.c
  * @brief Weighted self-play arena and hill-climbing tuner.
- * @author Jonathan
+ * @author Peng Yang Deng (), Emma Le ()
  * @date 09-Mar-26
  */
 
