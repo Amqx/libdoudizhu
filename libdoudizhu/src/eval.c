@@ -8,11 +8,12 @@
 #include "eval.h"
 #include "utils.h"
 
+// Gives a score to your hand based on how strong it is
 int evalHandScore(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
-    movesCountRanks(cards, n, cnt);
+    movesCountRanks(cards, n, cnt); // count how many of each rank you have
 
-    int score = 0;
+    int score = 0; // total hand score
 
     // Rocket (both jokers)
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
@@ -54,6 +55,7 @@ int evalHandScore(const Card cards[], const int n) {
     return score;
 }
 
+//Count how many bombs (strong combo) are in your hand
 int evalCountBombs(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
@@ -70,6 +72,7 @@ int evalCountBombs(const Card cards[], const int n) {
 
 /**
  * Absorb a kicker from rank-count arrays, preferring singles.
+ * This function is used to remove one card (preferably a single) when attaching kickers to combos to reduce total moves
  * @param tmp Rank count array of available cards.
  */
 static void absorbKicker(int tmp[RANK_COUNT_SIZE]) {
@@ -88,6 +91,9 @@ static void absorbKicker(int tmp[RANK_COUNT_SIZE]) {
 }
 
 /**
+ * Calculates the MINIMUM number of moves needed to play all your cards
+ * input: tmp[] or cards[] - your hand
+ * output: plays (int) - how many turns to finish your hand
  * @brief Core greedy min-plays algorithm operating on a mutable rank-count array.
  * @param tmp Rank count array of available cards.
  */
@@ -234,19 +240,28 @@ int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
  * Gives a bonus for control cards in a rank count array.
  * @param cnt Cards available in hand.
  */
+
 static int controlBonus(const int cnt[RANK_COUNT_SIZE]) {
-    int c = 0;
+    int c = 0; // total control bonus score
+
+    // Rocket (both jokers together) - very strong control
     if (cnt[RANK_SMALL_JOKER] >= 1 && cnt[RANK_BIG_JOKER] >= 1)
         c += 15;
+
+    // Bombs (four-of-a-kind) - strong control plays
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] >= 4)
-            c += 10;
+            c += 10; // each bomb adds bonus
     }
-    c += cnt[RANK_2] * 5;
-    c += cnt[RANK_A] * 2;
-    return c;
+
+    // High control cards → harder to beat
+    c += cnt[RANK_2] * 5; // 2 is very strong
+    c += cnt[RANK_A] * 2; // A is moderately strong
+
+    return c; // return total control strength
 }
 
+// Calculates how strong your hand is for bidding (becoming landlord)
 int evalBidStrength(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
@@ -293,6 +308,7 @@ int evalPlayPositionCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
     return 200 - mp * 15 + controlBonus(cnt);
 }
 
+// Assigns a numeric “cost/value” to a move based on its strength
 int evalMoveCost(const Move* m) {
     switch (m->type) {
         case MOVE_SINGLE:

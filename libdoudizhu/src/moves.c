@@ -18,18 +18,34 @@
 #define RANK_BIG_JOKER 14
 #define RANK_MAX_STRAIGHT RANK_A
 
-// Internal card comparison for qsort
+// Internal card comparison for qsort; tell which card is smaller/bigger
 static int cmpCardRank(const void* a, const void* b) {
+    //get card ranks
     const int ra = CARD_RANK(*(const Card*) a);
     const int rb = CARD_RANK(*(const Card*) b);
-    return ra - rb;
+    return ra - rb; //result: negative; a comes before b
+                    //result: positive; b comes before a
 }
 
+// Convert cards → frequency array (cnt)
 void movesCountRanks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
-    lddzMemset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
+    lddzMemset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));//reset array
+
+    //loop through cards and count each rank
     for (int i = 0; i < n; i++) {
         cnt[CARD_RANK(cards[i])]++;
     }
+
+    /* example:
+    - Input:
+        cards = [3♠, 3♥, 5♦, Joker]
+    - Output:
+        cnt[3] = 2
+        cnt[5] = 1
+        cnt[joker] = 1
+        everything else = 0
+
+    */
 }
 
 /**
@@ -40,15 +56,18 @@ void movesCountRanks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) 
 static void fillCardsFromCounts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MAX_CARDS]) {
     int idx = 0;
     // We iterate 0-53 to find matching cards in standard deck order
-    for (int r = 0; r < RANK_COUNT_SIZE; r++) {
+    for (int r = 0; r < RANK_COUNT_SIZE; r++) { //loop through all ranks
+
+        //get how many of that rank we need, skip if none
         int needed = cnt[r];
         if (needed <= 0)
             continue;
 
-        // Standard ranks (3 to 2) have 4 cards each
+        // Standard ranks (3 to 2) have 4 cards each; 3,4,5,6,7,8,9,10,J,Q,K,A,2
         if (r < 13) {
             for (int suit = 0; suit < 4 && needed > 0; suit++) {
-                dst[idx++] = (Card) (r * 4 + suit);
+                dst[idx++] = (Card) (r * 4 + suit); // give a list of actual cards of rank r (up to 4), based on how
+                                                    // many you need
                 needed--;
             }
         } else if (r == RANK_SMALL_JOKER) {
@@ -70,7 +89,10 @@ static void fillCardsFromCounts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MA
 static int trySingle(const int cnt[RANK_COUNT_SIZE], const int total, Move* m) {
     if (total != 1)
         return 0;
+
+    //find which card is it
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
+        //if found -> set move info
         if (cnt[r] == 1) {
             m->type = MOVE_SINGLE;
             m->rank = r;
@@ -494,6 +516,8 @@ static int tryFourTwoPairs(const int cnt[RANK_COUNT_SIZE], const int total, Move
 }
 
 /* --- Public Classification Functions --- */
+
+// Classify a hand into a move type (single, pair, straight, etc.)
 Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], const int total) {
     Move m = {0};
     m.type = MOVE_INVALID;
@@ -504,6 +528,7 @@ Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], const int total) {
         return m;
     }
 
+    //try all possible move type
     if (tryRocket(cnt, total, &m) || tryBomb(cnt, total, &m) || trySingle(cnt, total, &m) || tryPair(cnt, total, &m) ||
         tryTriple(cnt, total, &m) || tryTripleSingle(cnt, total, &m) || tryTriplePair(cnt, total, &m) ||
         tryFourTwoSingles(cnt, total, &m) || tryFourTwoPairs(cnt, total, &m) || tryStraight(cnt, total, &m) ||
@@ -515,6 +540,7 @@ Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], const int total) {
     return m;
 }
 
+// Classify into an actual move; cards in → move description out
 Move movesClassify(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
@@ -524,31 +550,56 @@ Move movesClassify(const Card cards[], const int n) {
     }
     m.count = n;
     return m;
+    /*
+    ex: [7♠, 7♥], n = 2
+
+    type  = what move (pair, single, etc.)
+    rank  = main value (7)
+    count = number of cards (2)
+    cards = original cards
+
+    */
 }
 
 /* --- Comparison Logic --- */
+
+// Checks if play beats prev (returns 1 = yes, 0 = no)
+// play is your move and prev is previous move on the table
 int movesBeats(const Move* play, const Move* prev) {
+    // If you played nothing or invalid move -> cannot win
     if (play->type == MOVE_PASS || play->type == MOVE_INVALID)
         return 0;
+
+    // If previous player passed -> you automatically win
     if (prev->type == MOVE_PASS)
         return 1;
+
+    // Rocket beats everything except another rocket
     if (play->type == MOVE_ROCKET)
         return (prev->type != MOVE_ROCKET);
 
+    // Handle bomb logic
     if (play->type == MOVE_BOMB) {
+        // Bomb cannot beat rocket
         if (prev->type == MOVE_ROCKET)
             return 0;
+        // Bomb vs bomb -> higher rank wins
         if (prev->type == MOVE_BOMB)
             return play->rank > prev->rank;
+        // Bomb beats all other normal moves
         return 1;
     }
+
+    // Normal moves cannot beat bomb or rocket
     if (prev->type == MOVE_ROCKET || prev->type == MOVE_BOMB)
         return 0;
 
+    // Must have same type, length, and number of cards to compare
     if (play->type != prev->type || play->length != prev->length || play->count != prev->count) {
         return 0;
     }
 
+    // Same type → higher rank wins
     return play->rank > prev->rank;
 }
 
@@ -562,7 +613,7 @@ int movesBeats(const Move* play, const Move* prev) {
 typedef void (*kicker_cb)(const int chosen[], int k, const void* ctx);
 
 /**
- * Chooses all available kickers
+ * It finds all ways to choose k ranks (kickers) from your hand and calls a function for each combination
  * @param cnt Rank count hand
  * @param need Number of kickers needed
  * @param k Current depth
@@ -572,6 +623,8 @@ typedef void (*kicker_cb)(const int chosen[], int k, const void* ctx);
  * @param cb Callback function for choosing kickers
  * @param ctx Context pointer
  */
+
+
 static void chooseKickers(const int cnt[RANK_COUNT_SIZE], const int need, const int k, int chosen[], const int depth,
                           const int start, const kicker_cb cb, void* ctx) {
     if (depth == k) {
@@ -629,7 +682,7 @@ static void onKickersChosen(const int chosen[], const int k, const void* ctx_) {
 
 /* --- Generation Subroutines --- */
 /**
- * Generates all valid, playable singles.
+ * Generate all valid single-card moves that can beat the previous move
  * @param cnt Rank count hand
  * @param prev Previously played move
  * @param out Out array for moves
@@ -653,7 +706,7 @@ static void genSingles(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move ou
 }
 
 /**
- * Generates all valid, playable pairs.
+ * Generate all valid pair-card moves that can beat the previous move
  * @param cnt Rank count hand
  * @param prev Previously played move
  * @param out Out array for moves
@@ -676,7 +729,7 @@ static void genPairs(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move out[
 }
 
 /**
- * Generates all valid, playable triples.
+ * Generate all valid triples-card moves that can beat the previous move
  * @param cnt Rank count hand
  * @param prev Previously played move
  * @param out Out array for moves
@@ -699,7 +752,7 @@ static void genTriples(const int cnt[RANK_COUNT_SIZE], const Move* prev, Move ou
 }
 
 /**
- * Generates all valid, playable bombs.
+ * Generate all valid bombs moves that can beat the previous move
  * @param cnt Rank count hand
  * @param prev Previously played move
  * @param out Out array for moves

@@ -9,6 +9,7 @@
 #include <stdlib.h> // Necessary for rand()
 #include "utils.h"
 
+//Game setup - reset everything for setup
 void gameInit(GameState* g) {
     lddzMemset(g, 0, sizeof(GameState));
     g->landlord = PLAYER_NONE;
