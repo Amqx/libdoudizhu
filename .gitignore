@@ -67,3 +67,4 @@ build
 .cache
 .idea
 .vscode
+.DS_STORE
