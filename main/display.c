@@ -12,13 +12,13 @@
  * @param r Rank index.
  * @return String representation of the rank.
  */
-static const char* rankStr(const int r) {
-    const char* t[] = {"3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "sJ", "bJ"};
+static const char *rankStr(const int r) {
+    const char *t[] = {"3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "sJ", "bJ"};
     return (r >= 0 && r < 15) ? t[r] : "?";
 }
 
 void printCard(const Card c) {
-    const char* suits[] = {"\xe2\x99\xa0", "\xe2\x99\xa5", "\xe2\x99\xa6", "\xe2\x99\xa3"}; /* ♠♥♦♣ */
+    const char *suits[] = {"\xe2\x99\xa0", "\xe2\x99\xa5", "\xe2\x99\xa6", "\xe2\x99\xa3"}; /* ♠♥♦♣ */
     if (c == 52)
         fputs("sJ", stdout);
     else if (c == 53)
@@ -41,7 +41,7 @@ void sortCardsInto(Card dst[], const Card src[], const int n) {
     }
 }
 
-void printHandSorted(const Hand* h) {
+void printHandSorted(const Hand *h) {
     Card tmp[GAME_MAX_HAND_SIZE];
     sortCardsInto(tmp, h->cards, h->count);
     for (int i = 0; i < h->count; i++) {
@@ -51,7 +51,7 @@ void printHandSorted(const Hand* h) {
     }
 }
 
-void printCardWithGap(const Card c, int* need_gap) {
+void printCardWithGap(const Card c, int *need_gap) {
     if (*need_gap)
         putchar(' ');
     printCard(c);
@@ -60,7 +60,7 @@ void printCardWithGap(const Card c, int* need_gap) {
 
 // Selectively prints a specific number of copies of a rank from a pre-sorted list.
 void printRankGroup(const Card sorted[], const int n, const int rank, int copies, int used[RANK_COUNT_SIZE],
-                    int* need_gap) {
+                    int *need_gap) {
     int seen = 0;
     for (int i = 0; i < n && copies > 0; i++) {
         if (CARD_RANK(sorted[i]) != rank)
@@ -81,7 +81,7 @@ void printRankGroup(const Card sorted[], const int n, const int rank, int copies
  * For simple cards (singles, doubles, triples, bombs), they are printed in order.
  * For complex moves (3+1, 4+1, 3+2, 4+2, etc.), the triple/ quad is printed first, then the attched cards.
  */
-void printMoveCardsByStructure(const Move* m) {
+void printMoveCardsByStructure(const Move *m) {
     Card tmp[MOVE_MAX_CARDS];
     int cnt[RANK_COUNT_SIZE] = {0};
     int used[RANK_COUNT_SIZE] = {0};
@@ -131,7 +131,7 @@ void printMoveCardsByStructure(const Move* m) {
     }
 }
 
-void printMoveInline(const Move* m) {
+void printMoveInline(const Move *m) {
     if (m->type == MOVE_PASS) {
         fputs("[Pass]", stdout);
         return;
@@ -143,14 +143,14 @@ void printMoveInline(const Move* m) {
 
 void hr(void) { puts("─────────────────────────────────────────────────────────"); }
 
-void banner(const char* s) {
+void banner(const char *s) {
     putchar('\n');
     hr();
     printf("  %s\n", s);
     hr();
 }
 
-const char* pname(int p) {
+const char *pname(const int p) {
     if (p == 0)
         return "You";
     if (p == 1)
@@ -158,10 +158,10 @@ const char* pname(int p) {
     return "Bot 2";
 }
 
-void printStatus(const GameState* g) {
+void printStatus(const GameState *g) {
     putchar('\n');
     for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
-        const char* role = gameIsPeasant(g, p) ? "Peasant" : "Landlord";
+        const char *role = gameIsPeasant(g, p) ? "Peasant" : "Landlord";
         printf("  %-8s [%-8s]  %2d card%s\n", pname(p), role, g->hands[p].count, g->hands[p].count == 1 ? "" : "s");
     }
     putchar('\n');

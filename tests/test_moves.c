@@ -19,7 +19,7 @@ static Card card(int rank, int suit) {
         return 52;
     if (rank == RANK_BIG_JOKER)
         return 53;
-    return (Card) (rank * 4 + suit);
+    return (Card)(rank * 4 + suit);
 }
 
 // Make N copies of the same rank (suits 0, 1, 2, 3).
@@ -357,9 +357,9 @@ static void testGeneratePass(void) {
     beginSuite("generate: from empty table");
     // Hand: 3♠ 3♥ 5♠ 7♠ 7♥ 7♦
     Card hand[] = {
-            card(RANK_3, 0), card(RANK_3, 1), card(RANK_5, 0), card(RANK_7, 0), card(RANK_7, 1), card(RANK_7, 2),
+        card(RANK_3, 0), card(RANK_3, 1), card(RANK_5, 0), card(RANK_7, 0), card(RANK_7, 1), card(RANK_7, 2),
     };
-    int hand_size = (int) (sizeof(hand) / sizeof(hand[0]));
+    int hand_size = sizeof(hand) / sizeof(hand[0]);
     Move prev = makePass();
     Move out[256];
     int n = movesGenerate(hand, hand_size, &prev, out, 256);
@@ -385,10 +385,10 @@ static void testGenerateBeatSingle(void) {
     beginSuite("generate: must beat a single");
     // Hand: 3♠ 7♠ K♠ 2♠
     Card hand[] = {
-            card(RANK_3, 0),
-            card(RANK_7, 0),
-            card(RANK_K, 0),
-            card(RANK_2, 0),
+        card(RANK_3, 0),
+        card(RANK_7, 0),
+        card(RANK_K, 0),
+        card(RANK_2, 0),
     };
     int hand_size = 4;
     Move prev = makeSingle(RANK_5); // on table: single 5
@@ -412,8 +412,8 @@ static void testGenerateBeatStraight(void) {
     beginSuite("generate: must beat a straight");
     // Hand containing 4-5-6-7-8 and 5-6-7-8-9.
     Card hand[] = {
-            card(RANK_4, 0), card(RANK_5, 0), card(RANK_5, 1), card(RANK_6, 0), card(RANK_6, 1),
-            card(RANK_7, 0), card(RANK_7, 1), card(RANK_8, 0), card(RANK_8, 1), card(RANK_9, 0),
+        card(RANK_4, 0), card(RANK_5, 0), card(RANK_5, 1), card(RANK_6, 0), card(RANK_6, 1),
+        card(RANK_7, 0), card(RANK_7, 1), card(RANK_8, 0), card(RANK_8, 1), card(RANK_9, 0),
     };
     int hand_size = 10;
     Move prev = makeStraight(RANK_3, 5); // table: 3-4-5-6-7
@@ -440,7 +440,7 @@ static void testGenerateBombAlwaysAvailable(void) {
     beginSuite("generate: bombs generated against any move");
     // Hand has a bomb of 3s.
     Card hand[] = {
-            card(RANK_3, 0), card(RANK_3, 1), card(RANK_3, 2), card(RANK_3, 3), card(RANK_7, 0),
+        card(RANK_3, 0), card(RANK_3, 1), card(RANK_3, 2), card(RANK_3, 3), card(RANK_7, 0),
     };
     int hand_size = 5;
     Move prev = makePair(RANK_K); // table: pair of Kings
@@ -467,14 +467,14 @@ static void testGenerateRoundTripsThroughClassify(void) {
     beginSuite("generate: round-trip classify");
 
     Card hand[] = {
-            card(RANK_3, 0), card(RANK_3, 1), card(RANK_4, 0), card(RANK_4, 1),           card(RANK_5, 0),
-            card(RANK_5, 1), card(RANK_5, 2), card(RANK_6, 0), card(RANK_6, 1),           card(RANK_6, 2),
-            card(RANK_7, 0), card(RANK_7, 1), card(RANK_7, 2), card(RANK_7, 3),           card(RANK_8, 0),
-            card(RANK_9, 0), card(RANK_Q, 0), card(RANK_Q, 1), card(RANK_SMALL_JOKER, 0), card(RANK_BIG_JOKER, 0),
+        card(RANK_3, 0), card(RANK_3, 1), card(RANK_4, 0), card(RANK_4, 1), card(RANK_5, 0),
+        card(RANK_5, 1), card(RANK_5, 2), card(RANK_6, 0), card(RANK_6, 1), card(RANK_6, 2),
+        card(RANK_7, 0), card(RANK_7, 1), card(RANK_7, 2), card(RANK_7, 3), card(RANK_8, 0),
+        card(RANK_9, 0), card(RANK_Q, 0), card(RANK_Q, 1), card(RANK_SMALL_JOKER, 0), card(RANK_BIG_JOKER, 0),
     };
     Move prev = makePass();
     Move out[512];
-    int n = movesGenerate(hand, (int) (sizeof(hand) / sizeof(hand[0])), &prev, out, 512);
+    int n = movesGenerate(hand, sizeof(hand) / sizeof(hand[0]), &prev, out, 512);
 
     EXPECT(n > 0, "generated at least one move");
     for (int i = 0; i < n; i++) {
@@ -493,7 +493,7 @@ static void testGenerateRoundTripsThroughClassify(void) {
 static void testCountRanks(void) {
     beginSuite("count_ranks");
     Card hand[] = {
-            card(RANK_3, 0), card(RANK_3, 1), card(RANK_3, 2), card(RANK_7, 0), card(RANK_BIG_JOKER, 0),
+        card(RANK_3, 0), card(RANK_3, 1), card(RANK_3, 2), card(RANK_7, 0), card(RANK_BIG_JOKER, 0),
     };
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(hand, 5, cnt);

@@ -29,7 +29,7 @@
  * @param hi Maximum high numbers.
  * @return Returns the number inputted.
  */
-static int readInt(const char* prompt, const int lo, const int hi) {
+static int readInt(const char *prompt, const int lo, const int hi) {
     for (;;) {
         fputs(prompt, stdout);
         fflush(stdout);
@@ -51,7 +51,7 @@ static int readInt(const char* prompt, const int lo, const int hi) {
  * @param g The currently playing game.
  * @return The user's bid.
  */
-static int humanBid(const GameState* g) {
+static int humanBid(const GameState *g) {
     const int lo = (g->bid.highest_score < 3) ? g->bid.highest_score + 1 : 4;
 
     printf("\n  Your hand: ");
@@ -80,7 +80,7 @@ static int humanBid(const GameState* g) {
     }
 }
 
-static Move humanPickMove(const GameState* g) {
+static Move humanPickMove(const GameState *g) {
     Move buf[MAX_LEGAL];
     const int n = gameLegalMoves(g, HUMAN, buf, MAX_LEGAL);
     const int is_leading = (g->last_player == PLAYER_NONE || g->last_player == HUMAN);
@@ -96,7 +96,7 @@ static Move humanPickMove(const GameState* g) {
         const int choice = readInt(prompt, lo, hi);
 
         if (choice == 0) {
-            const Move pass = {MOVE_PASS};
+            const Move pass = {MOVE_PASS, {0}, 0, 0, 0};
             return pass;
         }
         const int idx = choice - 1;
@@ -111,7 +111,7 @@ static Move humanPickMove(const GameState* g) {
  * @param scores List of scores for players
  * @param g Finished game state.
  */
-static void applyScores(int scores[GAME_NUM_PLAYERS], const GameState* g) {
+static void applyScores(int scores[GAME_NUM_PLAYERS], const GameState *g) {
     const int s = g->score;
     const int landlord_won = !gameIsPeasant(g, g->winner);
 

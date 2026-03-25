@@ -22,7 +22,7 @@ static Card mk(int rank, int suit) {
         return 52;
     if (rank == RANK_BIG_JOKER)
         return 53;
-    return (Card) (rank * 4 + suit);
+    return (Card)(rank * 4 + suit);
 }
 
 static void fillRank(Card buf[], int rank, int n) {
@@ -48,8 +48,8 @@ static GameState runBotsBid(unsigned int seed) {
     gameStartBidding(&g, 0);
     int iters = 0;
     while (g.phase == PHASE_BIDDING && iters++ < 20) {
-        int p = g.bid.current_bidder;
-        int bid = botBid(&g, p);
+        const int p = g.bid.current_bidder;
+        const int bid = botBid(&g, p);
         if (!gameBid(&g, p, bid))
             break; /* safety: illegal bid exits */
     }
@@ -77,10 +77,10 @@ static void testBidStrongHand(void) {
     gameStartBidding(&g, 0);
 
     /* Inject a clearly strong hand: bomb of Aces, rocket, two 2s */
-    Card strong[] = {
-            mk(RANK_A, 0),           mk(RANK_A, 1),         mk(RANK_A, 2), mk(RANK_A, 3), /* bomb +20 */
-            mk(RANK_SMALL_JOKER, 0), mk(RANK_BIG_JOKER, 0), /* rocket +25, sj+8, bj+10 */
-            mk(RANK_2, 0),           mk(RANK_2, 1), /* 2s +12 */
+    const Card strong[] = {
+        mk(RANK_A, 0), mk(RANK_A, 1), mk(RANK_A, 2), mk(RANK_A, 3), /* bomb +20 */
+        mk(RANK_SMALL_JOKER, 0), mk(RANK_BIG_JOKER, 0), /* rocket +25, sj+8, bj+10 */
+        mk(RANK_2, 0), mk(RANK_2, 1), /* 2s +12 */
     };
     memcpy(g.hands[0].cards, strong, sizeof(strong));
     g.hands[0].count = (int) (sizeof(strong) / sizeof(strong[0]));
@@ -97,9 +97,9 @@ static void testBidWeakHandPasses(void) {
     gameStartBidding(&g, 0);
 
     /* All different low-middle ranks, ≤ 2 of each (no bomb, no jokers, no 2s) */
-    Card weak[] = {
-            mk(RANK_3, 0), mk(RANK_5, 0), mk(RANK_7, 0), mk(RANK_9, 0),
-            mk(RANK_J, 0), mk(RANK_3, 1), mk(RANK_5, 1), mk(RANK_7, 1),
+    const Card weak[] = {
+        mk(RANK_3, 0), mk(RANK_5, 0), mk(RANK_7, 0), mk(RANK_9, 0),
+        mk(RANK_J, 0), mk(RANK_3, 1), mk(RANK_5, 1), mk(RANK_7, 1),
     };
     memcpy(g.hands[0].cards, weak, sizeof(weak));
     g.hands[0].count = (int) (sizeof(weak) / sizeof(weak[0]));
@@ -142,7 +142,7 @@ static void testFullGameSimulation(void) {
 
     /* Run several seeds; skip rounds where all bots passed (no landlord). */
     const unsigned int seeds[] = {42, 137, 999, 2025, 7777};
-    const int n_seeds = (int) (sizeof(seeds) / sizeof(seeds[0]));
+    const int n_seeds = sizeof(seeds) / sizeof(seeds[0]);
 
     for (int s = 0; s < n_seeds; s++) {
         GameState g = runBotsBid(seeds[s]);
@@ -541,16 +541,36 @@ static void testLandlordWeaknessInferenceBonus(void) {
     const int feeder = (landlord + 2) % 3;
 
     /* Round 1: gatekeeper leads pair 5s, feeder passes, landlord passes */
-    Card p5[2] = {mk(RANK_5, 0), mk(RANK_5, 1)};
-    g.history[g.history_count++] = (PlayRecord) {gatekeeper, movesClassify(p5, 2)};
-    g.history[g.history_count++] = (PlayRecord) {feeder, {MOVE_PASS}};
-    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
+    const Card p5[2] = {mk(RANK_5, 0), mk(RANK_5, 1)};
+    g.history[g.history_count++] = (PlayRecord) {
+        gatekeeper, movesClassify(p5, 2)
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        feeder, {
+            MOVE_PASS
+        }
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        landlord, {
+            MOVE_PASS
+        }
+    };
 
     /* Round 2: gatekeeper leads pair 6s, feeder passes, landlord passes */
-    Card p6[2] = {mk(RANK_6, 0), mk(RANK_6, 1)};
-    g.history[g.history_count++] = (PlayRecord) {gatekeeper, movesClassify(p6, 2)};
-    g.history[g.history_count++] = (PlayRecord) {feeder, {MOVE_PASS}};
-    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
+    const Card p6[2] = {mk(RANK_6, 0), mk(RANK_6, 1)};
+    g.history[g.history_count++] = (PlayRecord) {
+        gatekeeper, movesClassify(p6, 2)
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        feeder, {
+            MOVE_PASS
+        }
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        landlord, {
+            MOVE_PASS
+        }
+    };
 
     /* Gatekeeper now leads (empty table); hand has pair of 8s and single 3 */
     g.current_player = gatekeeper;
@@ -604,7 +624,7 @@ static void testSimulateDeterministic(void) {
 static void testDefaultWeightsAccessible(void) {
     beginSuite("bot: default weights struct is accessible and sane");
 
-    const BotWeights* w = botDefaultWeights();
+    const BotWeights *w = botDefaultWeights();
     EXPECT(w != NULL, "botDefaultWeights() returns non-NULL");
     EXPECT(w->clear_per_card > 0, "clear_per_card is positive");
     EXPECT(w->break_combo_penalty > 0, "break_combo_penalty is positive");
@@ -632,16 +652,36 @@ static void testPartnerSignalPrefersMatchingType(void) {
     /* History: feeder (our partner from gatekeeper's perspective) led singles twice */
     g.history_count = 0;
 
-    Card s5[1] = {mk(RANK_5, 0)};
-    Card s6[1] = {mk(RANK_6, 0)};
+    const Card s5[1] = {mk(RANK_5, 0)};
+    const Card s6[1] = {mk(RANK_6, 0)};
     /* Round 1: feeder leads single 5, gatekeeper/landlord pass */
-    g.history[g.history_count++] = (PlayRecord) {feeder, movesClassify(s5, 1)};
-    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
-    g.history[g.history_count++] = (PlayRecord) {gatekeeper, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {
+        feeder, movesClassify(s5, 1)
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        landlord, {
+            MOVE_PASS
+        }
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        gatekeeper, {
+            MOVE_PASS
+        }
+    };
     /* Round 2: feeder leads single 6, others pass */
-    g.history[g.history_count++] = (PlayRecord) {feeder, movesClassify(s6, 1)};
-    g.history[g.history_count++] = (PlayRecord) {landlord, {MOVE_PASS}};
-    g.history[g.history_count++] = (PlayRecord) {gatekeeper, {MOVE_PASS}};
+    g.history[g.history_count++] = (PlayRecord) {
+        feeder, movesClassify(s6, 1)
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        landlord, {
+            MOVE_PASS
+        }
+    };
+    g.history[g.history_count++] = (PlayRecord) {
+        gatekeeper, {
+            MOVE_PASS
+        }
+    };
 
     /* Gatekeeper now leads; hand has a single 9 and a pair of Ks */
     g.current_player = gatekeeper;

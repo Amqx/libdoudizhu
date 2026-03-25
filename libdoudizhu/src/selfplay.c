@@ -19,19 +19,19 @@ static int clampInt(const int value, const int lo, const int hi) {
 
 static int defaultOrPositive(const int value, const int fallback) { return value > 0 ? value : fallback; }
 
-static unsigned int nextRng(unsigned int* state) {
+static unsigned int nextRng(unsigned int *state) {
     *state = (*state * 1664525u) + 1013904223u;
     return *state;
 }
 
-static void fillDefaultCfg(SelfPlayTuneConfig* cfg) {
+static void fillDefaultCfg(SelfPlayTuneConfig *cfg) {
     cfg->generations = 64;
     cfg->games_per_generation = 24;
     cfg->initial_step = 20;
     cfg->seed = 1u;
 }
 
-static void clampWeights(BotWeights* weights) {
+static void clampWeights(BotWeights *weights) {
     const int count = botWeightsCount();
     for (int i = 0; i < count; i++) {
         const int value = botWeightsGet(weights, i);
@@ -39,14 +39,14 @@ static void clampWeights(BotWeights* weights) {
     }
 }
 
-void selfplayStatsReset(SelfPlayStats* stats, const int requested_games) {
+void selfplayStatsReset(SelfPlayStats *stats, const int requested_games) {
     if (!stats)
         return;
     lddzMemset(stats, 0, sizeof(*stats));
     stats->requested_games = requested_games;
 }
 
-static void recordCompletedGame(const GameState* g, SelfPlayStats* stats) {
+static void recordCompletedGame(const GameState *g, SelfPlayStats *stats) {
     const int winner = g->winner;
     const int winner_is_landlord = (winner == g->landlord);
 
@@ -67,9 +67,9 @@ static void recordCompletedGame(const GameState* g, SelfPlayStats* stats) {
 }
 
 void selfplayRunMatches(const int num_games, const unsigned int base_seed,
-                        const BotWeights* per_player_weights[GAME_NUM_PLAYERS], SelfPlayStats* stats_out) {
+                        const BotWeights *per_player_weights[GAME_NUM_PLAYERS], SelfPlayStats *stats_out) {
     SelfPlayStats local_stats;
-    SelfPlayStats* stats = stats_out ? stats_out : &local_stats;
+    SelfPlayStats *stats = stats_out ? stats_out : &local_stats;
     selfplayStatsReset(stats, num_games);
 
     int completed = 0;
@@ -86,7 +86,7 @@ void selfplayRunMatches(const int num_games, const unsigned int base_seed,
         int bid_iters = 0;
         while (g.phase == PHASE_BIDDING && bid_iters++ < 20) {
             const int p = g.bid.current_bidder;
-            const BotWeights* weights = per_player_weights ? per_player_weights[p] : NULL;
+            const BotWeights *weights = per_player_weights ? per_player_weights[p] : NULL;
             const int bid = botBidWithWeights(&g, p, weights);
             if (!gameBid(&g, p, bid))
                 break;
@@ -100,7 +100,7 @@ void selfplayRunMatches(const int num_games, const unsigned int base_seed,
         int play_iters = 0;
         while (g.phase == PHASE_PLAYING && play_iters++ < 400) {
             const int p = g.current_player;
-            const BotWeights* weights = per_player_weights ? per_player_weights[p] : NULL;
+            const BotWeights *weights = per_player_weights ? per_player_weights[p] : NULL;
             const Move m = botPlayWithWeights(&g, p, weights);
             if (!gamePlay(&g, p, &m))
                 break;
@@ -114,27 +114,27 @@ void selfplayRunMatches(const int num_games, const unsigned int base_seed,
     }
 }
 
-static int candidateTeamScore(const SelfPlayStats* stats, const int candidate_seat) {
+static int candidateTeamScore(const SelfPlayStats *stats, const int candidate_seat) {
     return stats->team_wins[candidate_seat];
 }
 
-static int evaluateCandidate(const BotWeights* incumbent, const BotWeights* candidate, const int games,
-                             unsigned int seed) {
+static int evaluateCandidate(const BotWeights *incumbent, const BotWeights *candidate, const int games,
+                             const unsigned int seed) {
     int candidate_score = 0;
 
     for (int seat = 0; seat < GAME_NUM_PLAYERS; seat++) {
-        const BotWeights* weights[GAME_NUM_PLAYERS] = {incumbent, incumbent, incumbent};
+        const BotWeights *weights[GAME_NUM_PLAYERS] = {incumbent, incumbent, incumbent};
         SelfPlayStats stats;
 
         weights[seat] = candidate;
-        selfplayRunMatches(games, seed + (unsigned int) (seat * 100003u), weights, &stats);
+        selfplayRunMatches(games, seed + seat * 100003u, weights, &stats);
         candidate_score += candidateTeamScore(&stats, seat);
     }
 
     return candidate_score;
 }
 
-void selfplayTune(const BotWeights* initial_weights, const SelfPlayTuneConfig* cfg_in, SelfPlayTuneResult* result_out) {
+void selfplayTune(const BotWeights *initial_weights, const SelfPlayTuneConfig *cfg_in, SelfPlayTuneResult *result_out) {
     if (!result_out)
         return;
 
@@ -201,9 +201,8 @@ void selfplayTune(const BotWeights* initial_weights, const SelfPlayTuneConfig* c
             result_out->best_weights = candidate;
             result_out->generations_accepted++;
         }
-    }
-    {
-        const BotWeights* arena_weights[GAME_NUM_PLAYERS] = {&incumbent, botDefaultWeights(), botDefaultWeights()};
+    } {
+        const BotWeights *arena_weights[GAME_NUM_PLAYERS] = {&incumbent, botDefaultWeights(), botDefaultWeights()};
         selfplayRunMatches(cfg.games_per_generation, cfg.seed + 424242u, arena_weights, &result_out->final_arena);
     }
 }

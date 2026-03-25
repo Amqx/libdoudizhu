@@ -10,7 +10,7 @@
 #include "utils.h"
 
 //Game setup - reset everything for setup
-void gameInit(GameState* g) {
+void gameInit(GameState *g) {
     lddzMemset(g, 0, sizeof(GameState));
     g->landlord = PLAYER_NONE;
     g->bid.current_bidder = PLAYER_NONE;
@@ -22,12 +22,12 @@ void gameInit(GameState* g) {
     g->winner = PLAYER_NONE;
 }
 
-void gameResetDeck(GameState* g) {
+void gameResetDeck(GameState *g) {
     for (int i = 0; i < GAME_DECK_SIZE; i++)
         g->deck[i] = (Card) i;
 }
 
-void gameShuffle(GameState* g, unsigned int seed) {
+void gameShuffle(GameState *g, unsigned int seed) {
     if (seed == 0)
         seed = 0;
     srand(seed);
@@ -39,7 +39,7 @@ void gameShuffle(GameState* g, unsigned int seed) {
     }
 }
 
-void gameDeal(GameState* g) {
+void gameDeal(GameState *g) {
     // Deal 17 cards to each player sequentially from the shuffled deck
     for (int p = 0; p < GAME_NUM_PLAYERS; p++) {
         for (int i = 0; i < GAME_HAND_SIZE; i++)
@@ -51,7 +51,7 @@ void gameDeal(GameState* g) {
         g->kitty[i] = g->deck[GAME_NUM_PLAYERS * GAME_HAND_SIZE + i];
 }
 
-void gameStartBidding(GameState* g, const int first_bidder) {
+void gameStartBidding(GameState *g, const int first_bidder) {
     g->phase = PHASE_BIDDING;
     g->bid.current_bidder = first_bidder;
     g->bid.highest_bidder = PLAYER_NONE;
@@ -67,8 +67,8 @@ void gameStartBidding(GameState* g, const int first_bidder) {
  * Internal helper to award kitty to the landlord and sort their hand.
  * @param g Currently playing game
  */
-static void assignKitty(GameState* g) {
-    Hand* h = &g->hands[g->landlord];
+static void assignKitty(GameState *g) {
+    Hand *h = &g->hands[g->landlord];
     for (int i = 0; i < GAME_KITTY_SIZE; i++)
         h->cards[h->count++] = g->kitty[i];
 
@@ -88,7 +88,7 @@ static void assignKitty(GameState* g) {
  * Transitions the game from bidding to the active playing phase.
  * @param g Currently playing game
  */
-static void startPlaying(GameState* g) {
+static void startPlaying(GameState *g) {
     assignKitty(g);
     g->base_score = g->bid.highest_score;
     g->phase = PHASE_PLAYING;
@@ -100,7 +100,7 @@ static void startPlaying(GameState* g) {
     g->history_count = 0;
 }
 
-int gameBid(GameState* g, const int player, const int value) {
+int gameBid(GameState *g, const int player, const int value) {
     if (g->phase != PHASE_BIDDING || player != g->bid.current_bidder)
         return 0;
     if (value < 0 || value > 3)
@@ -144,8 +144,8 @@ int gameBid(GameState* g, const int player, const int value) {
  * @param player Player index for the move
  * @param move Move played by player
  */
-static void removeCards(GameState* g, const int player, const Move* move) {
-    Hand* h = &g->hands[player];
+static void removeCards(GameState *g, const int player, const Move *move) {
+    Hand *h = &g->hands[player];
     for (int i = 0; i < move->count; i++) {
         const int target_rank = CARD_RANK(move->cards[i]);
         for (int j = 0; j < h->count; j++) {
@@ -163,7 +163,7 @@ static void removeCards(GameState* g, const int player, const Move* move) {
  * @param player Player index for the move
  * @param move Move played by player
  */
-static void recordPlay(GameState* g, const int player, const Move* move) {
+static void recordPlay(GameState *g, const int player, const Move *move) {
     if (g->history_count < GAME_MAX_PLAYS) {
         g->history[g->history_count].player = player;
         g->history[g->history_count].move = *move;
@@ -176,7 +176,7 @@ static void recordPlay(GameState* g, const int player, const Move* move) {
  * @param g Currently playing game
  * @param player Last player to move
  */
-static void checkGameOver(GameState* g, const int player) {
+static void checkGameOver(GameState *g, const int player) {
     if (g->hands[player].count == 0) {
         g->phase = PHASE_OVER;
         g->winner = player;
@@ -188,7 +188,7 @@ static void checkGameOver(GameState* g, const int player) {
     }
 }
 
-int gamePlayerHasCards(const GameState* g, const int player, const Move* move) {
+int gamePlayerHasCards(const GameState *g, const int player, const Move *move) {
     int have[RANK_COUNT_SIZE], need[RANK_COUNT_SIZE];
     movesCountRanks(g->hands[player].cards, g->hands[player].count, have);
     movesCountRanks(move->cards, move->count, need);
@@ -200,20 +200,21 @@ int gamePlayerHasCards(const GameState* g, const int player, const Move* move) {
     return 1;
 }
 
-int gameLegalMoves(const GameState* g, const int player, Move out[], const int max_out) {
-    const Move* prev = (g->last_player == PLAYER_NONE || g->last_player == player) ? &(const Move) {.type = MOVE_PASS}
-                                                                                   : &g->last_move;
+int gameLegalMoves(const GameState *g, const int player, Move out[], const int max_out) {
+    const Move *prev = (g->last_player == PLAYER_NONE || g->last_player == player)
+                           ? &(const Move){.type = MOVE_PASS}
+                           : &g->last_move;
     return movesGenerate(g->hands[player].cards, g->hands[player].count, prev, out, max_out);
 }
 
-int gameIsPeasant(const GameState* g, const int player) { return player != g->landlord; }
+int gameIsPeasant(const GameState *g, const int player) { return player != g->landlord; }
 
-int gameNextPlayer(const GameState* g, const int player) {
+int gameNextPlayer(const GameState *g, const int player) {
     (void) g;
     return (player + 1) % GAME_NUM_PLAYERS;
 }
 
-int gamePlay(GameState* g, const int player, const Move* move) {
+int gamePlay(GameState *g, const int player, const Move *move) {
     if (g->phase != PHASE_PLAYING || player != g->current_player || !move)
         return 0;
 
@@ -239,7 +240,7 @@ int gamePlay(GameState* g, const int player, const Move* move) {
         return 0;
 
     // Validate if the move beats the current move on the table.
-    int leads_turn = (g->last_player == PLAYER_NONE || g->last_player == player);
+    const int leads_turn = (g->last_player == PLAYER_NONE || g->last_player == player);
     if (!leads_turn && !movesBeats(move, &g->last_move))
         return 0;
 

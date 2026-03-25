@@ -18,7 +18,7 @@ static Card card(int rank, int suit) {
         return 52;
     if (rank == RANK_BIG_JOKER)
         return 53;
-    return (Card) (rank * 4 + suit);
+    return (Card)(rank * 4 + suit);
 }
 
 static void fillRank(Card buf[], int rank, int n) {
@@ -35,7 +35,7 @@ static void testScoreStrongBeatsWeak(void) {
 
     /* Weak hand: low singles only */
     Card weak[] = {
-            card(RANK_3, 0), card(RANK_4, 0), card(RANK_5, 0), card(RANK_6, 0), card(RANK_7, 0),
+        card(RANK_3, 0), card(RANK_4, 0), card(RANK_5, 0), card(RANK_6, 0), card(RANK_7, 0),
     };
 
     /* Strong hand: bomb + rocket + 2 */
@@ -82,7 +82,7 @@ static void testScoreStraightPotentialBonus(void) {
 
     /* Five non-consecutive ranks of similar values */
     Card scattered[5] = {
-            card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0), card(RANK_J, 0),
+        card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0), card(RANK_J, 0),
     };
 
     int s_run = evalHandScore(straight, 5);
@@ -211,8 +211,8 @@ static void testMinPlaysScatteredWorseThanChain(void) {
 
     /* Scattered: 8 different isolated ranks, no combos possible */
     Card scattered[8] = {
-            card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0),
-            card(RANK_J, 0), card(RANK_2, 0), card(RANK_A, 0), card(RANK_K, 0),
+        card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0),
+        card(RANK_J, 0), card(RANK_2, 0), card(RANK_A, 0), card(RANK_K, 0),
     };
 
     const int p_chain = evalMinPlays(chain, 8);
@@ -259,7 +259,7 @@ static void testPlayPositionFewerPlaysBetter(void) {
 
     /* Scattered singles: 5 plays */
     Card singles[5] = {
-            card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0), card(RANK_J, 0),
+        card(RANK_3, 0), card(RANK_5, 0), card(RANK_7, 0), card(RANK_9, 0), card(RANK_J, 0),
     };
 
     EXPECT(evalPlayPosition(straight, 5) > evalPlayPosition(singles, 5),
@@ -285,11 +285,9 @@ static void testMinPlaysCountsMatchesCardVariant(void) {
         hand[i] = card(RANK_3 + i, 0); /* 3-7 straight */
     hand[5] = card(RANK_9, 0);
 
-    int cnt[RANK_COUNT_SIZE];
-    /* Build count manually */
-    memset(cnt, 0, sizeof(cnt));
+    int cnt[RANK_COUNT_SIZE] = {0};
     for (int i = 0; i < 6; i++) {
-        int r = CARD_RANK(hand[i]);
+        const int r = CARD_RANK(hand[i]);
         cnt[r]++;
     }
 
@@ -303,12 +301,11 @@ static void testPlayPositionCountsMatchesCardVariant(void) {
     Card hand[4];
     fillRank(hand, RANK_A, 4); /* bomb of Aces */
 
-    int cnt[RANK_COUNT_SIZE];
-    memset(cnt, 0, sizeof(cnt));
+    int cnt[RANK_COUNT_SIZE] = {0};
     cnt[RANK_A] = 4;
 
-    int pos_cards = evalPlayPosition(hand, 4);
-    int pos_counts = evalPlayPositionCounts(cnt, 4);
+    const int pos_cards = evalPlayPosition(hand, 4);
+    const int pos_counts = evalPlayPositionCounts(cnt, 4);
     EXPECT_EQ(pos_cards, pos_counts, "count-array variant matches card-array variant");
 }
 

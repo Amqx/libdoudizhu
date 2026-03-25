@@ -44,7 +44,7 @@ static GameState runBidding(int first, int v0, int v1, int v2) {
 }
 
 // Find a card of a given rank in a hand (returns the card value, or 255).
-static Card findCardOfRank(const Hand* h, int rank) {
+static Card findCardOfRank(const Hand *h, int rank) {
     for (int i = 0; i < h->count; i++)
         if (CARD_RANK(h->cards[i]) == rank)
             return h->cards[i];
@@ -211,8 +211,7 @@ static void testHasCards(void) {
 
     // Build a move with one card from the landlord's hand.
     Card c = g.hands[landlord].cards[0];
-    Move m;
-    memset(&m, 0, sizeof(m));
+    Move m = {0};
     m.type = MOVE_SINGLE;
     m.count = 1;
     m.cards[0] = c;
@@ -237,7 +236,7 @@ static void testHasCards(void) {
         memset(&m2, 0, sizeof(m2));
         m2.type = MOVE_SINGLE;
         m2.count = 1;
-        m2.cards[0] = (absent_rank < 13) ? (Card) (absent_rank * 4) : (Card) (52 + absent_rank - 13);
+        m2.cards[0] = (absent_rank < 13) ? (Card)(absent_rank * 4) : (Card)(52 + absent_rank - 13);
         EXPECT(!gamePlayerHasCards(&g, landlord, &m2), "landlord does not have absent rank");
     }
 }
@@ -248,7 +247,7 @@ static void testHasCards(void) {
 
 // Play a single card of a given rank from the current player's hand.
 // Returns 1 if the play succeeded.
-static int playSingleRank(GameState* g, int rank) {
+static int playSingleRank(GameState *g, int rank) {
     int p = g->current_player;
     Card c = findCardOfRank(&g->hands[p], rank);
     if (c == 255)
@@ -308,7 +307,7 @@ static void testPlayCardsNotInHand(void) {
         return;
     }
 
-    Card c = (absent < 13) ? (Card) (absent * 4) : (Card) (52 + absent - 13);
+    Card c = (absent < 13) ? (Card)(absent * 4) : (Card)(52 + absent - 13);
     Move m;
     memset(&m, 0, sizeof(m));
     m.type = MOVE_SINGLE;
@@ -503,7 +502,7 @@ static void testBombDoublesScore(void) {
 
     // Overwrite first 4 cards of the current player with a bomb of 3s.
     for (int i = 0; i < 4; i++)
-        g.hands[p].cards[i] = (Card) (RANK_3 * 4 + i);
+        g.hands[p].cards[i] = (Card)(RANK_3 * 4 + i);
 
     Move bomb;
     memset(&bomb, 0, sizeof(bomb));
@@ -512,7 +511,7 @@ static void testBombDoublesScore(void) {
     bomb.length = 1;
     bomb.count = 4;
     for (int i = 0; i < 4; i++)
-        bomb.cards[i] = (Card) (RANK_3 * 4 + i);
+        bomb.cards[i] = (Card)(RANK_3 * 4 + i);
 
     int ok = gamePlay(&g, p, &bomb);
     EXPECT_EQ(ok, 1, "bomb play accepted");
@@ -659,7 +658,7 @@ static void testPlayRocketBeatsAll(void) {
 
     // Inject a bomb for p0.
     for (int i = 0; i < 4; i++)
-        g.hands[p0].cards[i] = (Card) (RANK_K * 4 + i);
+        g.hands[p0].cards[i] = (Card)(RANK_K * 4 + i);
     Move bomb;
     memset(&bomb, 0, sizeof(bomb));
     bomb.type = MOVE_BOMB;
@@ -691,29 +690,37 @@ static void testScoreWithMultipleBombs(void) {
 
     // Play two bombs.
     for (int i = 0; i < 4; i++)
-        g.hands[p0].cards[i] = (Card) (RANK_3 * 4 + i);
+        g.hands[p0].cards[i] = (Card)(RANK_3 * 4 + i);
     Move b3;
     memset(&b3, 0, sizeof(b3));
     b3.type = MOVE_BOMB;
     b3.rank = RANK_3;
     b3.count = 4;
     for (int i = 0; i < 4; i++)
-        b3.cards[i] = (Card) (RANK_3 * 4 + i);
+        b3.cards[i] = (Card)(RANK_3 * 4 + i);
     gamePlay(&g, p0, &b3);
 
     // Clear table with passes to play another bomb.
-    gamePlay(&g, gameNextPlayer(&g, p0), &(Move) {MOVE_PASS});
-    gamePlay(&g, gameNextPlayer(&g, gameNextPlayer(&g, p0)), &(Move) {MOVE_PASS});
+    gamePlay(&g, gameNextPlayer(&g, p0), &(Move) {
+        MOVE_PASS
+    }
+    )
+    ;
+    gamePlay(&g, gameNextPlayer(&g, gameNextPlayer(&g, p0)), &(Move) {
+        MOVE_PASS
+    }
+    )
+    ;
 
     for (int i = 0; i < 4; i++)
-        g.hands[p0].cards[i] = (Card) (RANK_4 * 4 + i);
+        g.hands[p0].cards[i] = (Card)(RANK_4 * 4 + i);
     Move b4;
     memset(&b4, 0, sizeof(b4));
     b4.type = MOVE_BOMB;
     b4.rank = RANK_4;
     b4.count = 4;
     for (int i = 0; i < 4; i++)
-        b4.cards[i] = (Card) (RANK_4 * 4 + i);
+        b4.cards[i] = (Card)(RANK_4 * 4 + i);
     gamePlay(&g, p0, &b4);
 
     EXPECT_EQ(g.bomb_count, 2, "two bombs recorded");

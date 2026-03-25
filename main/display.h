@@ -69,7 +69,7 @@ void printMoveInline(const Move* m);
 /**
  * @brief Prints a horizontal rule to stdout.
  */
-void hr();
+void hr(void);
 
 /**
  * @brief Prints a decorated banner with the provided title.
