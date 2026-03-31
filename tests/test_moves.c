@@ -486,6 +486,53 @@ static void testGenerateRoundTripsThroughClassify(void) {
     }
 }
 
+static int moveHasExactCards(const Move *move, const Card cards[], int n) {
+    if (move->count != n)
+        return 0;
+
+    int used[MOVE_MAX_CARDS] = {0};
+    for (int i = 0; i < n; i++) {
+        int found = 0;
+        for (int j = 0; j < n; j++) {
+            if (!used[j] && move->cards[j] == cards[i]) {
+                used[j] = 1;
+                found = 1;
+                break;
+            }
+        }
+        if (!found)
+            return 0;
+    }
+    return 1;
+}
+
+static void testGeneratePreservesActualCardIdentities(void) {
+    beginSuite("generate: preserves source card suits");
+
+    Card hand[] = {
+        card(RANK_K, 1), card(RANK_K, 3), card(RANK_5, 2),
+    };
+    const Card expectedPair[] = {
+        card(RANK_K, 1), card(RANK_K, 3),
+    };
+
+    Move prev = makePass();
+    Move out[64];
+    int n = movesGenerate(hand, sizeof(hand) / sizeof(hand[0]), &prev, out, 64);
+
+    int foundExactPair = 0;
+    for (int i = 0; i < n; i++) {
+        if (out[i].type == MOVE_PAIR && out[i].rank == RANK_K &&
+            moveHasExactCards(&out[i], expectedPair, 2)) {
+            foundExactPair = 1;
+            break;
+        }
+    }
+
+    EXPECT(foundExactPair,
+           "generated pair should keep the exact suit identities from the hand");
+}
+
 // ---------------------------------------------------------------------------
 // Tests: movesCountRanks
 // ---------------------------------------------------------------------------
@@ -638,6 +685,7 @@ int main(void) {
     testGenerateBombAlwaysAvailable();
     testGenerateEmptyHand();
     testGenerateRoundTripsThroughClassify();
+    testGeneratePreservesActualCardIdentities();
 
     // utilities
     testCountRanks();

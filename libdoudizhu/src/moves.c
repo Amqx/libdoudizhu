@@ -78,6 +78,24 @@ static void fillCardsFromCounts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MA
     }
 }
 
+static void assignActualCardsFromHand(const Card hand[], const int hand_size, Move *move) {
+    if (hand == NULL || move == NULL || move->count <= 0)
+        return;
+
+    int needed[RANK_COUNT_SIZE];
+    movesCountRanks(move->cards, move->count, needed);
+
+    int idx = 0;
+    for (int i = 0; i < hand_size && idx < move->count; i++) {
+        const Card c = hand[i];
+        const int rank = CARD_RANK(c);
+        if (needed[rank] > 0) {
+            move->cards[idx++] = c;
+            needed[rank]--;
+        }
+    }
+}
+
 /* --- Classification Helpers --- */
 /**
  * Attempts to classify the move as the lowest single
@@ -1123,6 +1141,11 @@ int movesGenerate(const Card hand[], const int hand_size, const Move* prev, Move
         default:
             break;
     }
+
+    const int written = (n < max_out) ? n : max_out;
+    for (int i = 0; i < written; i++)
+        assignActualCardsFromHand(hand, hand_size, &out[i]);
+
     return n;
 }
 
