@@ -292,7 +292,7 @@ static void testMinPlaysCountsMatchesCardVariant(void) {
     }
 
     int mp_cards = evalMinPlays(hand, 6);
-    int mp_counts = evalMinPlaysCounts(cnt, 6);
+    int mp_counts = evalMinPlaysCounts(cnt);
     EXPECT_EQ(mp_cards, mp_counts, "count-array variant matches card-array variant");
 }
 

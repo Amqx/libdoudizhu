@@ -15,14 +15,14 @@
  * @brief Aggregate results from a weighted self-play run.
  */
 typedef struct {
-    int requested_games; /**< Target number of completed games. */
-    int completed_games; /**< Games that reached PHASE_OVER. */
-    int skipped_games; /**< Deals skipped because bidding produced no landlord. */
-    int seat_wins[GAME_NUM_PLAYERS]; /**< Win count for each seat index. */
-    int team_wins[GAME_NUM_PLAYERS]; /**< Team wins credited to each seat's team. */
-    int landlord_wins; /**< Number of games won by the landlord seat. */
-    int peasant_wins; /**< Number of games won by the peasant team. */
-    int total_score; /**< Sum of final doubled scores across completed games. */
+    int requested_games; // Target number of completed games.
+    int completed_games; // Games that reached PHASE_OVER.
+    int skipped_games; // Deals skipped because bidding produced no landlord.
+    int seat_wins[GAME_NUM_PLAYERS]; // Win count for each seat index.
+    int team_wins[GAME_NUM_PLAYERS]; // Team wins credited to each seat's team.
+    int landlord_wins; // Number of games won by the landlord seat.
+    int peasant_wins; // Number of games won by the peasant team.
+    int total_score; // Sum of final doubled scores across completed games.
 } SelfPlayStats;
 
 /**
@@ -30,8 +30,8 @@ typedef struct {
  * @brief Controls the hill-climbing self-play tuning loop.
  */
 typedef struct {
-    int generations; /**< Number of candidate mutations to evaluate. */
-    int games_per_generation; /**< Games used to score each candidate. */
+    int generations; // Number of candidate mutations to evaluate.
+    int games_per_generation; // Games used to score each candidate.
     /**
      * Initial mutation size as a percentage (0–100) of each field's sensible
      * range (from botWeightsMin / botWeightsMax).  Anneals linearly to 1%
@@ -42,7 +42,7 @@ typedef struct {
      * (break_combo_penalty: 0–1000).
      */
     int initial_step;
-    unsigned int seed; /**< PRNG seed for mutation and match generation. */
+    unsigned int seed; // PRNG seed for mutation and match generation.
 } SelfPlayTuneConfig;
 
 /**
@@ -50,13 +50,13 @@ typedef struct {
  * @brief Outcome of a self-play tuning run.
  */
 typedef struct {
-    BotWeights initial_weights; /**< Starting point before tuning. */
-    BotWeights best_weights; /**< Final incumbent after tuning. */
-    SelfPlayStats final_arena; /**< Final incumbent vs default arena result. */
-    int generations_attempted; /**< Number of candidate mutations evaluated. */
-    int generations_accepted; /**< Number of mutations that replaced incumbent. */
-    int last_field_index; /**< Index of the most recently tested field. */
-    int last_step; /**< Absolute step used in the most recent mutation. */
+    BotWeights initial_weights; // Starting point before tuning.
+    BotWeights best_weights; // Final incumbent after tuning.
+    SelfPlayStats final_arena; // Final incumbent vs default arena result.
+    int generations_attempted; // Number of candidate mutations evaluated.
+    int generations_accepted; // Number of mutations that replaced incumbent.
+    int last_field_index; // Index of the most recently tested field.
+    int last_step; // Absolute step used in the most recent mutation.
 } SelfPlayTuneResult;
 
 /**

@@ -36,7 +36,7 @@ typedef struct {
     int kicker_joker; // Joker used as a kicker attachment
     int kicker_2; // 2 used as a kicker attachment
     int kicker_ace; // Ace used as a kicker attachment
-    int kicker_king; //**< King used as a kicker attachment
+    int kicker_king; // King used as a kicker attachment
     int kicker_bomb_break; // Breaking a four of a kind as a kicker
     int kicker_triple_break; // Breaking a triple when using as a kicker
     int kicker_pair_break; // Breaking a pair when using as a kicker

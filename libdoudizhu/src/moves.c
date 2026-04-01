@@ -6,7 +6,7 @@
  */
 
 #include "moves.h"
-#include <stdlib.h> // Since stdlib is already being used from game.c, we might as well use it for qsort too
+#include <stdlib.h>
 #include "utils.h"
 
 // Rank definitions
@@ -18,34 +18,16 @@
 #define RANK_BIG_JOKER 14
 #define RANK_MAX_STRAIGHT RANK_A
 
-// Internal card comparison for qsort; tell which card is smaller/bigger
 static int cmpCardRank(const void* a, const void* b) {
-    //get card ranks
     const int ra = CARD_RANK(*(const Card*) a);
     const int rb = CARD_RANK(*(const Card*) b);
-    return ra - rb; //result: negative; a comes before b
-                    //result: positive; b comes before a
+    return ra - rb;
 }
 
-// Convert cards → frequency array (cnt)
 void movesCountRanks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) {
-    lddzMemset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));//reset array
-
-    //loop through cards and count each rank
-    for (int i = 0; i < n; i++) {
+    lddzMemset(cnt, 0, RANK_COUNT_SIZE * sizeof(int));
+    for (int i = 0; i < n; i++)
         cnt[CARD_RANK(cards[i])]++;
-    }
-
-    /* example:
-    - Input:
-        cards = [3♠, 3♥, 5♦, Joker]
-    - Output:
-        cnt[3] = 2
-        cnt[5] = 1
-        cnt[joker] = 1
-        everything else = 0
-
-    */
 }
 
 /**
@@ -55,19 +37,14 @@ void movesCountRanks(const Card cards[], const int n, int cnt[RANK_COUNT_SIZE]) 
  */
 static void fillCardsFromCounts(const int cnt[RANK_COUNT_SIZE], Card dst[MOVE_MAX_CARDS]) {
     int idx = 0;
-    // We iterate 0-53 to find matching cards in standard deck order
-    for (int r = 0; r < RANK_COUNT_SIZE; r++) { //loop through all ranks
-
-        //get how many of that rank we need, skip if none
+    for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         int needed = cnt[r];
         if (needed <= 0)
             continue;
-
-        // Standard ranks (3 to 2) have 4 cards each; 3,4,5,6,7,8,9,10,J,Q,K,A,2
+        // Standard ranks (3–2) have 4 suits; jokers are singletons at indices 52 and 53
         if (r < 13) {
             for (int suit = 0; suit < 4 && needed > 0; suit++) {
-                dst[idx++] = (Card) (r * 4 + suit); // give a list of actual cards of rank r (up to 4), based on how
-                                                    // many you need
+                dst[idx++] = (Card) (r * 4 + suit);
                 needed--;
             }
         } else if (r == RANK_SMALL_JOKER) {
@@ -546,7 +523,6 @@ Move movesClassifyCounts(const int cnt[RANK_COUNT_SIZE], const int total) {
         return m;
     }
 
-    //try all possible move type
     if (tryRocket(cnt, total, &m) || tryBomb(cnt, total, &m) || trySingle(cnt, total, &m) || tryPair(cnt, total, &m) ||
         tryTriple(cnt, total, &m) || tryTripleSingle(cnt, total, &m) || tryTriplePair(cnt, total, &m) ||
         tryFourTwoSingles(cnt, total, &m) || tryFourTwoPairs(cnt, total, &m) || tryStraight(cnt, total, &m) ||
@@ -568,15 +544,6 @@ Move movesClassify(const Card cards[], const int n) {
     }
     m.count = n;
     return m;
-    /*
-    ex: [7♠, 7♥], n = 2
-
-    type  = what move (pair, single, etc.)
-    rank  = main value (7)
-    count = number of cards (2)
-    cards = original cards
-
-    */
 }
 
 /* --- Comparison Logic --- */

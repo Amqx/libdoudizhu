@@ -8,7 +8,6 @@
 #include "eval.h"
 #include "utils.h"
 
-// Gives a score to your hand based on how strong it is
 int evalHandScore(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt); // count how many of each rank you have
@@ -55,7 +54,6 @@ int evalHandScore(const Card cards[], const int n) {
     return score;
 }
 
-//Count how many bombs (strong combo) are in your hand
 int evalCountBombs(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
@@ -229,8 +227,7 @@ int evalMinPlays(const Card cards[], const int n) {
     return minPlaysInner(tmp);
 }
 
-int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
-    (void) n;
+int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE]) {
     int tmp[RANK_COUNT_SIZE];
     lddzMemcpy(tmp, cnt, RANK_COUNT_SIZE * sizeof(int));
     return minPlaysInner(tmp);
@@ -251,17 +248,16 @@ static int controlBonus(const int cnt[RANK_COUNT_SIZE]) {
     // Bombs (four-of-a-kind) - strong control plays
     for (int r = 0; r < RANK_COUNT_SIZE; r++) {
         if (cnt[r] >= 4)
-            c += 10; // each bomb adds bonus
+            c += 10;
     }
 
-    // High control cards → harder to beat
-    c += cnt[RANK_2] * 5; // 2 is very strong
-    c += cnt[RANK_A] * 2; // A is moderately strong
+    // High control cards -> harder to beat
+    c += cnt[RANK_2] * 5;
+    c += cnt[RANK_A] * 2;
 
-    return c; // return total control strength
+    return c;
 }
 
-// Calculates how strong your hand is for bidding (becoming landlord)
 int evalBidStrength(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
@@ -285,7 +281,7 @@ int evalBidStrength(const Card cards[], const int n) {
     score += cnt[RANK_K] * 1;
 
     // Bonus for a hand that empties quickly
-    const int mp = evalMinPlaysCounts(cnt, n);
+    const int mp = evalMinPlaysCounts(cnt);
     if (mp <= 5)
         score += 5;
     if (mp <= 3)
@@ -297,18 +293,17 @@ int evalBidStrength(const Card cards[], const int n) {
 int evalPlayPosition(const Card cards[], const int n) {
     int cnt[RANK_COUNT_SIZE];
     movesCountRanks(cards, n, cnt);
-    const int mp = evalMinPlaysCounts(cnt, n);
+    const int mp = evalMinPlaysCounts(cnt);
     return 200 - mp * 15 + controlBonus(cnt);
 }
 
 int evalPlayPositionCounts(const int cnt[RANK_COUNT_SIZE], const int n) {
     if (n <= 0)
         return 200;
-    const int mp = evalMinPlaysCounts(cnt, n);
+    const int mp = evalMinPlaysCounts(cnt);
     return 200 - mp * 15 + controlBonus(cnt);
 }
 
-// Assigns a numeric “cost/value” to a move based on its strength
 int evalMoveCost(const Move* m) {
     switch (m->type) {
         case MOVE_SINGLE:

@@ -50,10 +50,9 @@ int evalMinPlays(const Card cards[], int n);
 /**
  * @brief Rank-count-array variant of evalMinPlays.
  * @param cnt Pre-computed rank-count array.
- * @param n   Total number of cards.
  * @return Estimated minimum play count.
  */
-int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE], int n);
+int evalMinPlaysCounts(const int cnt[RANK_COUNT_SIZE]);
 
 /**
  * @brief Rank-count-array variant of evalPlayPosition.

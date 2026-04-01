@@ -15,10 +15,11 @@ Licensed via GPL v3
 
 ## Building
 
-This library should build on most if not all compilers. I have only tested standard gcc (15.2.1 20260103),
-riscv64-elf-gcc (Arch Linux Repositories - 15.2.0) and MSVC (19.44.35222 for x64).
+This library should build on most if not all compilers. We have only tested standard gcc (15.2.1 20260103),
+riscv64-elf-gcc (Arch Linux Repositories - 15.2.0), riscv32-unknown-elf-gcc included with Quartus Lite (), and MSVC (
+19.44.35222 for x64).
 
-You will need CMake, Ninja, and a C compiler that CMake can find.
+You will need CMake, Ninja, and a C compiler.
 
 ```bash
 # From project root
@@ -35,7 +36,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" --target all -S ..
 
 cmake --build
 
-# Depending on what you built, the following should be in your current directory
+# Depending on what you built, the following should be in your build directory
 
 ## CLI game
 ./game

@@ -440,13 +440,12 @@ static int scoreLead(const Move* m, const BotCtx* ctx, const int hand_size, cons
     sc -= evalMoveCost(m); // Prefer weaker ranks so control cards are preserved
     if (breaksCombination(m, hand_cnt))
         sc -= weights->break_combo_penalty;
-    // Penalty for breaking the rocket or any bombs
     sc -= kickerPenalty(m, hand_cnt, weights); // Penalty for using control cards or breaking bombs for a kicker
     const int pld = weights->pos_lead_divisor > 0 ? weights->pos_lead_divisor : 1;
     sc += positionAfterMove(hand_cnt, m, hand_size) / pld; // Post-move position
+    // Speed up the score of moves that clear more cards in the endgame
     if (ctx->endgame)
         sc += m->count * weights->endgame_clear;
-    // Speed up the score of moves that clear more cards in the endgame
 
     // In the early game add a bonus for chains that reduce hand size quickly
     if (!ctx->endgame) {
@@ -463,9 +462,9 @@ static int scoreLead(const Move* m, const BotCtx* ctx, const int hand_size, cons
         }
     }
 
+    // Feeder penalty: discourage leading big combos so the gatekeeper gets the chance
     if (ctx->is_feeder)
         sc -= m->count * weights->feeder_penalty;
-    // Feeder bonus for passing small leads to the gatekeeper
 
     // History inference bonuses
     if (ctx->is_peasant) {
@@ -497,7 +496,7 @@ static int scoreResponse(const Move* m, const BotCtx* ctx, const int hand_size, 
 
     int sc = 0;
 
-    sc -= evalMoveCost(m); // The cheapest card that beast is the default. Negate the cost of that play.
+    sc -= evalMoveCost(m); // Prefer the cheapest card that beats; negate its cost.
     if (breaksCombination(m, hand_cnt))
         sc -= weights->break_combo_penalty; // Avoid wasting a bomb or rocket component
     sc -= kickerPenalty(m, hand_cnt, weights); // Penalty for using control of bomb components as kickers
@@ -506,12 +505,12 @@ static int scoreResponse(const Move* m, const BotCtx* ctx, const int hand_size, 
     const int prd = weights->pos_resp_divisor > 0 ? weights->pos_resp_divisor : 1;
     sc += positionAfterMove(hand_cnt, m, hand_size) / prd;
 
+    // When danger is present, prefer using heavier responses for control.
     if (ctx->danger)
         sc += m->count * weights->danger_per_card;
-    // When danger is present, prefer using heavier responses for control.
+    // The gatekeeper should play aggressively to stop the landlord.
     if (ctx->is_gatekeeper && g->last_player == g->landlord)
         sc += weights->gatekeeper_bonus;
-    // The gatekeeper should play aggressively to stop the landlord.
 
     // Control card preservation: The bot shouldn't waste 2's or jokers to beat something they don't have to stop.
     // Bid clues: If the landlord bids 3, they most likely have strong controlling cards. Reduce the saving penalty so
@@ -555,9 +554,9 @@ static int scoreResponse(const Move* m, const BotCtx* ctx, const int hand_size, 
 static int shouldBomb(const BotCtx* ctx, const GameState* g, const int player) {
     if (ctx->danger)
         return 1; // Always bomb if we are in danger
+    // Always bomb if the landlord bid high and we are in the endgame
     if (ctx->endgame && ctx->landlord_bid >= 2)
         return 1;
-    // Always bomb if the landlord bid high and we are in the endgame
 
     // If a member of the opposing team is in an endgame state, the bot should bomb for control.
     if (ctx->is_peasant) {

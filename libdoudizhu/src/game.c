@@ -6,7 +6,7 @@
  */
 
 #include "game.h"
-#include <stdlib.h> // Necessary for rand()
+#include <stdlib.h>
 #include "utils.h"
 
 //Game setup - reset everything for setup
@@ -28,8 +28,6 @@ void gameResetDeck(GameState *g) {
 }
 
 void gameShuffle(GameState *g, unsigned int seed) {
-    if (seed == 0)
-        seed = 0;
     srand(seed);
     for (int i = GAME_DECK_SIZE - 1; i > 0; i--) {
         const int j = rand() % (i + 1);
