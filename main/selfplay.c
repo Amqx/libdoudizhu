@@ -1,7 +1,7 @@
 /**
  * @file selfplay.c
  * @brief CLI driver for weighted self-play tuning.
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 09-Mar-26
  */
 

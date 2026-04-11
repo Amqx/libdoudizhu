@@ -1,7 +1,7 @@
 /**
  * @file utils.h
  * @brief Utilities
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 17-Mar-26
  */
 

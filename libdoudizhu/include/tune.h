@@ -1,7 +1,7 @@
 /**
  * @file tune.h
  * @brief Weight introspection, mutation, and self-play simulation for bot tuning.
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

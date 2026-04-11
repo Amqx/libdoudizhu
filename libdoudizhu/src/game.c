@@ -1,7 +1,7 @@
 /**
  * @file game.c
  * @brief Implementation of doudizhu game engine logic.
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

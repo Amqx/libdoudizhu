@@ -1,7 +1,7 @@
 /**
  * @file test_moves.c
  * @brief Tests for the moves module (valid and legal move detection/ generation)
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

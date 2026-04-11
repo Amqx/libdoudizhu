@@ -1,7 +1,7 @@
 /**
  * @file main.c
  * @brief CLI Dou Di Zhu — human player vs two bots
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file bot.h
  * @brief Rule-based bot player for libdoudizhu
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

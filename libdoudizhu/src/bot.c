@@ -1,7 +1,7 @@
 /**
  * @file bot.c
  * @brief Rule-based AI implementation for libdoudizhu
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

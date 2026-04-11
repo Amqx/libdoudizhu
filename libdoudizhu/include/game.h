@@ -1,7 +1,7 @@
 /**
  * @file game.h
  * @brief Core game engine logic for doudizhu
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file test_game.c
  * @brief Tests for the game module (game state and updating)
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file moves.c
  * @brief Implementation of libdoudizhu moves and card logic
- * @author Peng Yang Deng (), Emma Le ()
+ * @author Peng Yang Deng, Emma Le
  * @date 08-Mar-26
  */
 
